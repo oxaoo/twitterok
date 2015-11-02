@@ -1,0 +1,96 @@
+<html>
+<head>
+    <title>Twitterok</title>
+    <meta charset="windows-1251">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
+    <script src="vertx-eventbus.js"></script>
+
+    <link href="./resource/css/bootstrap.css" rel="stylesheet">
+    <style type="text/css">
+        body
+        {
+        padding-top: 40px;
+        padding-bottom: 40px;
+        background-color: #f5f5f5;
+        }
+
+        .received
+        {
+        width: 160px;
+        font-size: 10px;
+        }
+
+    </style>
+    <link href="./resource/css/bootstrap-responsive.css" rel="stylesheet">
+
+    <script>
+	  var eb = new EventBus("/eventbus/");
+	  //var $chatWindow;
+	  eb.onopen = function ()
+	  {
+		//$chatWindow = $('#response');
+		var check = true;
+		eb.registerHandler("chat.to.client", function (err, msg)
+		{
+			var $messageLine = $('<tr><td class="received">' + msg.received
+				+ '</td><td class="user label label-info">' + msg.sender
+				+ '</td><td class="message badge">' + msg.body
+				+ '</td></tr>');
+
+			//$chatWindow.append($messageLine);
+			//$chatWindow.prependTo($messageLine);
+			if (check)
+			{
+				//$chatWindow.append($messageLine);
+				$('#response').append($messageLine);
+				check = false;
+			}
+			else
+				$('#response > tbody > tr:first').before($messageLine);
+				//$($messageLine).prependTo("#response > tbody");
+				//$("#response tbody").prepend($messageLine);
+				//$chatWindow.prependTo($messageLine);
+
+			//$("#response tbody").prepend($messageLine);
+			//var count = $('#gvPerformanceResult tr').length;
+
+		});
+	  };
+
+
+	  $(document).ready(function()
+	  {
+		$('#do-chat').submit(function(evt)
+		{
+			evt.preventDefault();
+			var message = $('#message').val();
+			if (message.length > 0)
+			{
+				eb.publish("chat.to.server", message);
+				$('#message').val("").focus();
+			}
+		});
+	});
+
+	</script>
+
+</head>
+
+<body>
+<div class="container chat-wrapper">
+    <form id="do-chat">
+        <h2 align="center" class="alert alert-success">TWITTEROK</h2>
+        <fieldset>
+            <div class="controls">
+                <input type="text" autocomplete="off" class="input-block-level" placeholder="Что нового?" id="message" style="height:60px"/>
+                <input type="submit" class="btn btn-large btn-block btn-primary" value="Твитнуть" />
+            </div>
+        </fieldset>
+        <legend>Новые твиты</legend>
+        <table id="response" class="table table-bordered"></table>
+    </form>
+</div>
+</body>
+</html>
