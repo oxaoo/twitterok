@@ -34,27 +34,27 @@
 		var check = true;
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
+			/*
 			var $messageLine = $('<tr><td class="received">' + msg.received
 				+ '</td><td class="user label label-info">' + msg.sender
 				+ '</td><td class="message badge">' + msg.body
 				+ '</td></tr>');
+			*/
 
-			//$chatWindow.append($messageLine);
-			//$chatWindow.prependTo($messageLine);
+			var m = JSON.parse(msg.body);
+			
+			var $messageLine = $('<tr><td class="received">' + m.time
+				+ '</td><td class="user label label-info">' + m.addr
+				+ '</td><td class="message badge">' + m.message
+				+ '</td></tr>');
+
 			if (check)
 			{
-				//$chatWindow.append($messageLine);
 				$('#response').append($messageLine);
 				check = false;
 			}
 			else
 				$('#response > tbody > tr:first').before($messageLine);
-				//$($messageLine).prependTo("#response > tbody");
-				//$("#response tbody").prepend($messageLine);
-				//$chatWindow.prependTo($messageLine);
-
-			//$("#response tbody").prepend($messageLine);
-			//var count = $('#gvPerformanceResult tr').length;
 
 		});
 	  };
@@ -62,15 +62,22 @@
 
 	  $(document).ready(function()
 	  {
-		$('#do-chat').submit(function(evt)
+		$('#twit').submit(function(evt)
 		{
 			evt.preventDefault();
 			var message = $('#message').val();
+			
 			if (message.length > 0)
 			{
 				eb.publish("chat.to.server", message);
 				$('#message').val("").focus();
 			}
+
+			/*
+			alert('and');
+			var ipp = eb.SockJS.remoteAddress();
+			alert('ip is:' + ipp);
+			*/
 		});
 	});
 
@@ -80,15 +87,15 @@
 
 <body>
 <div class="container chat-wrapper">
-    <form id="do-chat">
+    <form id="twit">
         <h2 align="center" class="alert alert-success">TWITTEROK</h2>
         <fieldset>
             <div class="controls">
-                <input type="text" autocomplete="off" class="input-block-level" placeholder="Что нового?" id="message" style="height:60px"/>
+                <input type="text" maxlength="140" autocomplete="off" class="input-block-level" placeholder="Что нового?" id="message" style="height:60px"/>
                 <input type="submit" class="btn btn-large btn-block btn-primary" value="Твитнуть" />
             </div>
         </fieldset>
-        <legend>Новые твиты</legend>
+        <h3>Новые твиты</h3>
         <table id="response" class="table table-bordered"></table>
     </form>
 </div>
