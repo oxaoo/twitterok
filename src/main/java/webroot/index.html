@@ -7,7 +7,7 @@
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertx-eventbus.js"></script>
 
-    <link href="./resource/css/bootstrap.css" rel="stylesheet">
+    <link href="./resource/css2/bootstrap.css" rel="stylesheet">
     <style type="text/css">
         body
         {
@@ -22,8 +22,10 @@
         font-size: 10px;
         }
 
+
     </style>
-    <link href="./resource/css/bootstrap-responsive.css" rel="stylesheet">
+    <!--link href="./resource/css/bootstrap-responsive.css" rel="stylesheet"-->
+	<link href="./resource/css2/bootstrap-theme.css" rel="stylesheet">
 
     <script>
 	  var eb = new EventBus("/eventbus/");
@@ -34,18 +36,11 @@
 		var check = true;
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
-			/*
-			var $messageLine = $('<tr><td class="received">' + msg.received
-				+ '</td><td class="user label label-info">' + msg.sender
-				+ '</td><td class="message badge">' + msg.body
-				+ '</td></tr>');
-			*/
-
 			var m = JSON.parse(msg.body);
 			
-			var $messageLine = $('<tr><td class="received">' + m.time
+			var $messageLine = $('<tr><td class="user label label-success">' + m.time
 				+ '</td><td class="user label label-info">' + m.addr
-				+ '</td><td class="message badge">' + m.message
+				+ '</td><td>' + m.message
 				+ '</td></tr>');
 
 			if (check)
@@ -71,15 +66,35 @@
 			{
 				eb.publish("chat.to.server", message);
 				$('#message').val("").focus();
+				countChar();
 			}
-
-			/*
-			alert('and');
-			var ipp = eb.SockJS.remoteAddress();
-			alert('ip is:' + ipp);
-			*/
 		});
-	});
+	  });
+	  
+	  function countChar() 
+	  {
+		var len = $('#message').val().length;
+        if (len > 140) 
+		{
+		  var msg = $('#message').val().substring(0, 140);
+		  $('#message').val(msg);
+        } 
+		else 
+		{
+		  var per = 100 / 140 * len;
+          $('#charNum').text(140 - len);
+		  
+		  
+		  var per1 = (per < 20) ? per : 20;
+		  var per2 = (per < 80) ? ((per1 == 20) ? (per - 20) : 0) : 60;
+		  var per3 = (per > 80) ? (per - 80) : 0;
+		  
+			
+		  $('#progress-bar1').css('width', per1+'%').attr('aria-valuenow', per1);
+		  $('#progress-bar2').css('width', per2+'%').attr('aria-valuenow', per2);
+		  $('#progress-bar3').css('width', per3+'%').attr('aria-valuenow', per3);
+        }
+      };
 
 	</script>
 
@@ -90,13 +105,44 @@
     <form id="twit">
         <h2 align="center" class="alert alert-success">TWITTEROK</h2>
         <fieldset>
-            <div class="controls">
-                <input type="text" maxlength="140" autocomplete="off" class="input-block-level" placeholder="Что нового?" id="message" style="height:60px"/>
-                <input type="submit" class="btn btn-large btn-block btn-primary" value="Твитнуть" />
+            <!--div class="controls"-->
+			<div class="input-group input-group-lg">
+			  <input type="text" maxlength="141" autocomplete="off" class="form-control" placeholder="Что нового?" id="message" aria-describedby="sizing-addon1" onkeyup="countChar()"/>
+			  <span class="input-group-btn">
+				<button class="btn btn-success" type="submit">
+				<span class="glyphicon glyphicon-send"></span></button>
+			  </span>
             </div>
         </fieldset>
-        <h3>Новые твиты</h3>
-        <table id="response" class="table table-bordered"></table>
+
+		<h3 id="charNum">140</h3>
+		
+		<div class="progress">
+		  <div id="progress-bar1" class="progress-bar progress-bar-success active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="20" style="width: 0%">
+			<span class="sr-only">0% Complete</span>
+			</div>
+			
+			<div id="progress-bar2" class="progress-bar progress-bar-warning active" role="progressbar" aria-valuenow="20" aria-valuemin="20" aria-valuemax="80" style="width: 0%">
+			<span class="sr-only">20% Complete</span>
+			</div>
+			<div id="progress-bar3" class="progress-bar progress-bar-danger active" role="progressbar" aria-valuenow="80" aria-valuemin="80" aria-valuemax="100" style="width: 0%">
+			<span class="sr-only">80% Complete</span>
+		  </div>
+		</div>
+		
+		
+		<br>
+		<div class="panel panel-success">
+		  <div class="panel-heading"><h3>Новые твиты</h3></div>
+		  <table id="response" class="table table-hover" width="100%">
+			  <colgroup>
+				<col style="width:10%">
+				<col style="width:10%">
+				<col style="width:80%">
+			  </colgroup> 
+		  </table>
+		</div>
+   
     </form>
 </div>
 </body>
