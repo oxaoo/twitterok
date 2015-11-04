@@ -24,15 +24,12 @@
 
 
     </style>
-    <!--link href="./resource/css/bootstrap-responsive.css" rel="stylesheet"-->
 	<link href="./resource/css/bootstrap-theme.css" rel="stylesheet">
 
     <script>
 	  var eb = new EventBus("/eventbus/");
-	  //var $chatWindow;
 	  eb.onopen = function ()
 	  {
-		//$chatWindow = $('#response');
 		var check = true;
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
@@ -40,8 +37,9 @@
 			
 			if (json.type == 'publish')
 			{
-				var $messageLine = $('<tr><td class="user label label-success">' + json.time
-					+ '</td><td class="user label label-info">' + json.addr
+					
+				var $messageLine = $('<tr><td class="warning">' + json.time
+					+ '</td><td class="info">' + json.addr
 					+ '</td><td>' + json.message
 					+ '</td></tr>');
 
@@ -54,20 +52,7 @@
 					$('#response > tbody > tr:first').before($messageLine);
 			}
 			
-			if (json.type == 'create')
-			{
-				//$('#online').text(online);
-				$('#online').text(json.count);
-			}
-			
-			if (json.type == 'closed')
-			{
-				//$('#online').text(online);
-				//var v = $('#online').val().split(' ');
-				//$('#online').text(v[0] + ' ' + json.count);
-				$('#online').text(json.count);
-			}
-
+			$('#online').text(json.count);
 		});
 	  };
 
@@ -122,13 +107,13 @@
     <form id="twit">
         <h2 align="center" class="alert alert-success">TWITTEROK</h2>
         <fieldset>
-            <!--div class="controls"-->
 			<div class="input-group input-group-lg">
-			  <!--span class="glyphicon glyphicon-eye-open" id="cntlook"> </span-->
 			  <span class="input-group-addon">
 				<span class="glyphicon glyphicon-eye-open"></span>
 			  </span>
-				<span class="input-group-addon" id="online">1</span>
+				<span class="input-group-addon" id="online">
+					<span class="glyphicon glyphicon-option-horizontal"></span>
+				</span>
 			  <input type="text" maxlength="141" autocomplete="off" class="form-control" placeholder="Что нового?" id="message" aria-describedby="sizing-addon1" onkeyup="countChar()"/>
 			  <span class="input-group-btn">
 				<button class="btn btn-success" type="submit">

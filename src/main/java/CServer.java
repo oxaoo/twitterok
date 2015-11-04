@@ -16,6 +16,8 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.function.Consumer;
 
+import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
+
 /**
  * Created by Alexander on 03.11.2015.
  */
@@ -97,11 +99,10 @@ public class CServer extends AbstractVerticle
         SockJSHandler ebHandler = SockJSHandler.create(vertx);
 
 
-        ebHandler.bridge(opts, event ->
-        {
-            if (event.type() == BridgeEvent.Type.PUBLISH || event.type() == BridgeEvent.Type.SEND)
+        ebHandler.bridge(opts, event -> {
+
+            if (event.type() == PUBLISH || event.type() == SEND)
             {
-                //System.out.println("Type: " + event.type().toString());
                 if (event.rawMessage().getString("address").equals("chat.to.server"))
                 {
                     String message = event.rawMessage().getString("body");
@@ -110,45 +111,33 @@ public class CServer extends AbstractVerticle
 
                     JSONObject jmsg = new JSONObject();
                     jmsg.put("type", "publish");
+                    jmsg.put("count", m_clients);
                     jmsg.put("time", time);
                     jmsg.put("addr", ip);
                     jmsg.put("message", message);
 
-                    //eb.publish("chat.to.client", jmsg.toJSONString());
+                    //String port = String.valueOf(event.socket().remoteAddress().port());
+                    //System.out.println("Publish, ip: " + ip + ", port: " + port);
+
                     vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
                 }
             }
 
-            //new user.
-            if (event.type() == BridgeEvent.Type.SOCKET_CREATED)
+            //клиент присоединился/покинул чат.
+            if (event.type() == SOCKET_CREATED || event.type() == SOCKET_CLOSED)
             {
-                m_clients++;
+                m_clients = (event.type() == SOCKET_CREATED) ? m_clients + 1 : m_clients - 1;
+
                 String ip = event.socket().remoteAddress().host();
                 String port = String.valueOf(event.socket().remoteAddress().port());
-                //System.out.println("New client: " + ip + ":" + port);
 
                 JSONObject jmsg = new JSONObject();
-                jmsg.put("type", "create");
+                jmsg.put("type", "socket");
                 jmsg.put("count", m_clients);
                 jmsg.put("addr", ip);
                 jmsg.put("port", port);
 
-                vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
-            }
-
-            //left user.
-            if (event.type() == BridgeEvent.Type.SOCKET_CLOSED)
-            {
-                m_clients--;
-                String ip = event.socket().remoteAddress().host();
-                String port = String.valueOf(event.socket().remoteAddress().port());
-                //System.out.println("Exit client: " + ip + ":" + port);
-
-                JSONObject jmsg = new JSONObject();
-                jmsg.put("type", "closed");
-                jmsg.put("count", m_clients);
-                jmsg.put("addr", ip);
-                jmsg.put("port", port);
+                //System.out.println("Socket create/close, ip: " + ip + ", port: " + port);
 
                 vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
             }
