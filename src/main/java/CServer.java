@@ -1,20 +1,17 @@
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
+import io.vertx.core.Starter;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.StaticHandler;
-import io.vertx.ext.web.handler.sockjs.BridgeEvent;
 import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
 import org.json.simple.JSONObject;
 
-import java.io.File;
-import java.io.IOException;
 import java.text.DateFormat;
 import java.time.Instant;
 import java.util.Date;
-import java.util.function.Consumer;
 
 import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
@@ -23,71 +20,26 @@ import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
  */
 public class CServer extends AbstractVerticle
 {
-    int m_clients = 0;
+    private int m_clients = 0;
+    private Logger m_log = LoggerFactory.getLogger(CServer.class);
 
-    public static void main(String[] args)
+    @Override
+    public void start() //throws Exception
     {
-        VertxOptions options = new VertxOptions().setClustered(false);
-        String dir = "twitterok/src/main/java/";
-
-        /*
-        if (options == null)
-        {
-            // Default parameter
-            options = new VertxOptions();
-        }*/
-
-        try
-        {
-            File current = new File(".").getCanonicalFile();
-            if (dir.startsWith(current.getName()) && !dir.equals(current.getName()))
-            {
-                dir = dir.substring(current.getName().length() + 1);
-            }
-        }
-        catch (IOException e)
-        {}
-
-        System.setProperty("vertx.cwd", dir);
-        String verticleID = CServer.class.getName();
-
-        Consumer<Vertx> runner = vertx ->
+        int hostPort = 8080;
+        if (Starter.PROCESS_ARGS.size() > 0)
         {
             try
             {
-                vertx.deployVerticle(verticleID);
-            }
-            catch (Throwable t)
+                hostPort = Integer.valueOf(Starter.PROCESS_ARGS.get(0));
+            } catch (NumberFormatException e)
             {
-                t.printStackTrace();
+                m_log.warn("Invalid port: [" + Starter.PROCESS_ARGS.get(0) + "]");
             }
-        };
-
-        if (options.isClustered())
-        {
-            Vertx.clusteredVertx(options, res ->
-            {
-                if (res.succeeded())
-                {
-                    Vertx vertx = res.result();
-                    runner.accept(vertx);
-                } else
-                {
-                    res.cause().printStackTrace();
-                }
-            });
-        }
-        else
-        {
-            Vertx vertx = Vertx.vertx(options);
-            runner.accept(vertx);
         }
 
-    }
+        m_log.info("Port: " + hostPort);
 
-    @Override
-    public void start() throws Exception
-    {
         Router router = Router.router(vertx);
 
         //назначение адресов для моста шины событий.
@@ -116,8 +68,8 @@ public class CServer extends AbstractVerticle
                     jmsg.put("addr", ip);
                     jmsg.put("message", message);
 
-                    //String port = String.valueOf(event.socket().remoteAddress().port());
-                    //System.out.println("Publish, ip: " + ip + ", port: " + port);
+                    String port = String.valueOf(event.socket().remoteAddress().port());
+                    m_log.debug("Publish, ip: " + ip + ", port: " + port);
 
                     vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
                 }
@@ -137,7 +89,10 @@ public class CServer extends AbstractVerticle
                 jmsg.put("addr", ip);
                 jmsg.put("port", port);
 
-                //System.out.println("Socket create/close, ip: " + ip + ", port: " + port);
+                if (event.type() == SOCKET_CREATED)
+                    m_log.info("Create socket, ip:port [" + ip + ":" + port + "]");
+                else
+                    m_log.info("Closed socket, ip:port [" + ip + ":" + port + "]");
 
                 vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
             }
@@ -149,6 +104,6 @@ public class CServer extends AbstractVerticle
         router.route().handler(StaticHandler.create());
 
         //запуск вер-сервера.
-        vertx.createHttpServer().requestHandler(router::accept).listen(8080);
+        vertx.createHttpServer().requestHandler(router::accept).listen(hostPort);
     }
 }
