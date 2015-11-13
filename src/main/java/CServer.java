@@ -22,7 +22,7 @@ import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
 public class CServer extends AbstractVerticle
 {
-    private static int m_cntClients = 0;
+    //private static int m_cntClients = 0;
     private Logger log = LoggerFactory.getLogger(CServer.class);
 
     private SockJSHandler mHandler = null;
@@ -124,7 +124,7 @@ public class CServer extends AbstractVerticle
 
             JSONObject jmsg = new JSONObject();
             jmsg.put("type", "publish");
-            jmsg.put("count", m_cntClients);
+            jmsg.put("count", CClient.count.get());
             jmsg.put("time", time);
             jmsg.put("addr", ip);
             jmsg.put("message", message);
@@ -141,14 +141,19 @@ public class CServer extends AbstractVerticle
 
     protected boolean socketEvent(BridgeEvent event)
     {
-        m_cntClients = (event.type() == SOCKET_CREATED) ? m_cntClients + 1 : m_cntClients - 1;
+        //m_cntClients = (event.type() == SOCKET_CREATED) ? m_cntClients + 1 : m_cntClients - 1;
+
+        if (event.type() == SOCKET_CREATED)
+            CClient.count.incrementAndGet();
+        else
+            CClient.count.decrementAndGet();
 
         String ip = event.socket().remoteAddress().host();
         String port = String.valueOf(event.socket().remoteAddress().port());
 
         JSONObject jmsg = new JSONObject();
         jmsg.put("type", "socket");
-        jmsg.put("count", m_cntClients);
+        jmsg.put("count", CClient.count.get());
         jmsg.put("addr", ip);
         jmsg.put("port", port);
 
