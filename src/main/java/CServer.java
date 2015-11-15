@@ -1,7 +1,4 @@
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Starter;
-import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
@@ -12,17 +9,11 @@ import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
 import org.json.simple.JSONObject;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.util.Calendar;
-import java.util.Date;
-import java.util.function.Consumer;
 
 import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
@@ -101,14 +92,12 @@ public class CServer extends AbstractVerticle
                 .addInboundPermitted(new PermittedOptions().setAddress("chat.to.server"))
                 .addOutboundPermitted(new PermittedOptions().setAddress("chat.to.client"));
 
-        mHandler.bridge(opts, event ->
-        {
-            if (event.type() == PUBLISH || event.type() == SEND)
-                publishEvent(event);
+        mHandler.bridge(opts, event -> {
+            if (event.type() == PUBLISH || event.type() == SEND) publishEvent(event);
 
             //клиент присоединился/покинул чат.
-            if (event.type() == SOCKET_CREATED || event.type() == SOCKET_CLOSED)
-                socketEvent(event);
+            //if (event.type() == SOCKET_CREATED || event.type() == SOCKET_CLOSED)
+            if (event.type() == REGISTER || event.type() == UNREGISTER) registerEvent(event);
 
             event.complete(true);
         });
@@ -143,29 +132,33 @@ public class CServer extends AbstractVerticle
             return false;
     }
 
-    protected boolean socketEvent(BridgeEvent event)
+    protected void registerEvent(BridgeEvent event)
     {
-        //m_cntClients = (event.type() == SOCKET_CREATED) ? m_cntClients + 1 : m_cntClients - 1;
+        new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if (event.type() == REGISTER)
+                    CClient.count.incrementAndGet();
+                else
+                    CClient.count.decrementAndGet();
 
-        if (event.type() == SOCKET_CREATED)
-            CClient.count.incrementAndGet();
-        else
-            CClient.count.decrementAndGet();
+                String ip = event.socket().remoteAddress().host();
+                String port = String.valueOf(event.socket().remoteAddress().port());
 
-        String ip = event.socket().remoteAddress().host();
-        String port = String.valueOf(event.socket().remoteAddress().port());
+                JSONObject jmsg = new JSONObject();
+                jmsg.put("type", "register");
+                jmsg.put("count", CClient.count.get());
+                jmsg.put("addr", ip);
+                jmsg.put("port", port);
 
-        JSONObject jmsg = new JSONObject();
-        jmsg.put("type", "socket");
-        jmsg.put("count", CClient.count.get());
-        jmsg.put("addr", ip);
-        jmsg.put("port", port);
+                if (event.type() == REGISTER) log.info("Register handler, ip:port [" + ip + ":" + port + "]");
+                else log.info("Unregister handler, ip:port [" + ip + ":" + port + "]");
 
-        if (event.type() == SOCKET_CREATED) log.info("Create socket, ip:port [" + ip + ":" + port + "]");
-        else log.info("Closed socket, ip:port [" + ip + ":" + port + "]");
-
-        vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
-        return true;
+                vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
+            }
+        }).start();
     }
 
     protected boolean verifyMessage(String msg)
