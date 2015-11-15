@@ -54,8 +54,11 @@
 				else
 					$('#response > tbody > tr:first').before($messageLine);
 			}
-			
-			$('#online').text(json.count);
+			else
+			{
+				alert("New user");
+				$('#online').text(json.count);
+			}
 		});
 	  };
 

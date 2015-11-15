@@ -125,16 +125,10 @@ public class CServer extends AbstractVerticle
             String ip = event.socket().remoteAddress().host();
             String port = String.valueOf(event.socket().remoteAddress().port());
 
-            // TODO время.
-
-            //SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yy HH:mm:ss");
-            //String time = sdf.format(Calendar.getInstance().getTime());
             String time = Calendar.getInstance().getTime().toString();
-            //String time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM).format(Date.from(Instant.now()));
 
             JSONObject jmsg = new JSONObject();
             jmsg.put("type", "publish");
-            jmsg.put("count", CClient.count.get());
             jmsg.put("time", time);
             jmsg.put("addr", ip);
             jmsg.put("message", message);
