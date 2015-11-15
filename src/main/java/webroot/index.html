@@ -6,6 +6,7 @@
     <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertx-eventbus.js"></script>
+	<script src="date-format.js"></script>
 
     <link href="./resource/css/bootstrap.css" rel="stylesheet">
     <style type="text/css">
@@ -37,8 +38,10 @@
 			
 			if (json.type == 'publish')
 			{
-					
-				var $messageLine = $('<tr><td class="warning">' + json.time
+				var t = Date.parse(json.time);
+				var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
+
+				var $messageLine = $('<tr><td class="warning">' + tf
 					+ '</td><td class="info">' + json.addr
 					+ '</td><td>' + json.message
 					+ '</td></tr>');

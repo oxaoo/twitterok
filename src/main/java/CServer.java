@@ -1,5 +1,7 @@
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Starter;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
@@ -10,13 +12,17 @@ import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
 import org.json.simple.JSONObject;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.function.Consumer;
 
 import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
@@ -120,7 +126,11 @@ public class CServer extends AbstractVerticle
             String port = String.valueOf(event.socket().remoteAddress().port());
 
             // TODO время.
-            String time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM).format(Date.from(Instant.now()));
+
+            //SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yy HH:mm:ss");
+            //String time = sdf.format(Calendar.getInstance().getTime());
+            String time = Calendar.getInstance().getTime().toString();
+            //String time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM).format(Date.from(Instant.now()));
 
             JSONObject jmsg = new JSONObject();
             jmsg.put("type", "publish");
