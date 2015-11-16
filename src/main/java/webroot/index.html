@@ -1,37 +1,66 @@
+<!DOCTYPE html>
 <html>
 <head>
     <title>Twitterok</title>
     <meta charset="windows-1251">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <!--script src="https://code.jquery.com/jquery-1.11.2.min.js"></script-->
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertx-eventbus.js"></script>
 	<script src="date-format.js"></script>
+	<script src="stopwatch.js"></script>
 
-    <link href="./resource/css/bootstrap.css" rel="stylesheet">
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+	<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	<script src="jquery.runner.js" type="text/javascript"></script>
+
+    <!--link href="./resource/css/bootstrap.css" rel="stylesheet"-->
     <style type="text/css">
         body
         {
-        padding-top: 40px;
-        padding-bottom: 40px;
-        background-color: #f5f5f5;
+			padding-top: 40px;
+			padding-bottom: 40px;
+			background-color: #f5f5f5;
         }
 
         .received
         {
-        width: 160px;
-        font-size: 10px;
+			width: 160px;
+			font-size: 10px;
         }
+
+		.tab-content
+		{
+			padding:5px
+		}
+
+		.nav-tabs > li > a,
+		.nav-tabs > li > a:hover
+		{
+			color: #3c763d;
+		}
+
+		.nav-tabs > li.active > a,
+		.nav-tabs > li.active > a:focus,
+		.nav-tabs > li.active > a:hover
+		{
+			background-color: #dff0d8 !important;
+		}
 
 
     </style>
-	<link href="./resource/css/bootstrap-theme.css" rel="stylesheet">
+	<!--link href="./resource/css/bootstrap-theme.css" rel="stylesheet"-->
 
     <script>
+
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
 	  {
 		var check = true;
+		var cntOnline = 0;
+		var cntMsg = 0;
+
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
 			var json = JSON.parse(msg.body);
@@ -41,26 +70,65 @@
 				var t = Date.parse(json.time);
 				var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
 
-				var $messageLine = $('<tr><td class="warning">' + tf
-					+ '</td><td class="info">' + json.addr
+				cntMsg++;
+				//var bgc = '';
+				var bgc = ' bgcolor="#dff0d8"';
+				if (cntMsg % 2 == 0)
+					bgc = ' bgcolor=\"#ffffff\"';
+
+				var $messageLine = $('<tr' + bgc + '><td align="left">' + tf
+					+ '</td><td align="left">' + json.addr
 					+ '</td><td>' + json.message
 					+ '</td></tr>');
 
 				if (check)
 				{
-					$('#response').append($messageLine);
+					$('#tweets').append($messageLine);
 					check = false;
 				}
 				else
-					$('#response > tbody > tr:first').before($messageLine);
+					$('#tweets > tbody > tr:first').before($messageLine);
 			}
-			else
+
+			if (json.type == 'register')
 			{
-				//alert("New user");
+				cntOnline++;
 				$('#online').text(json.count);
+
+				var et = Date.parse(json.entryTime);
+				var etf = dateFormat(et, "HH:MM:ss");
+				var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
+							'onclick="privateTweet(' + cntOnline + ')">' +
+							'<span class="glyphicon glyphicon-envelope"></span></button>';
+
+				var bgc2 = '';
+				if (cntOnline % 2 == 1)
+					bgc2 = ' bgcolor="#ffffff"';
+
+
+				var duration = '<span id="runner' + cntOnline + '"></span>';
+
+
+				var $newUser = $('<tr' + bgc2 + '><td>' + json.addr
+					+ '</td><td>' + json.port
+					+ '</td><td>' + etf
+					+ '</td><td>' + duration + ' сек.'
+					+ '</td><td align="center" border="0">' + message
+					+ '</td></tr>');
+
+				$('#online-list').append($newUser);
+
+				//$('#runner' + cntOnline).runner('start');
+				//$('#runner' + cntOnline).runner('start');
+				$('#runner' + cntOnline).runner({autostart: true, startAt: 9000000, milliseconds: false});
 			}
 		});
 	  };
+
+	  function privateTweet(num)
+	  {
+		alert('Num: ' + num);
+	  }
 
 
 	  $(document).ready(function()
@@ -144,18 +212,54 @@
 		</div>
 		
 		
-		<br>
-		<div class="panel panel-success">
-		  <div class="panel-heading"><h3>Новые твиты</h3></div>
-		  <table id="response" class="table table-hover" width="100%">
-			  <colgroup>
-				<col style="width:10%">
-				<col style="width:10%">
-				<col style="width:80%">
-			  </colgroup> 
-		  </table>
+		<!--br-->
+		<!--div class="panel panel-success"-->
+		<div class="container panel-success">
+		  <!--div class="panel-heading"><h3>Новые твиты</h3></div-->
+			<ul class="nav nav-tabs">
+				<li class="active"><a data-toggle="tab" href="#newt">
+					<span class="glyphicon glyphicon-fire"></span>
+					 Новые твиты</a></li>
+				<li><a data-toggle="tab" href="#onlinet">
+					<span class="glyphicon glyphicon-user"></span>
+					 Онлайн</a></li>
+				<li><a data-toggle="tab" href="#chatt">
+					<span class="glyphicon glyphicon-sunglasses"></span>
+					 Приватный чат</a></li>
+			</ul>
+
+			<div class="tab-content">
+				<div id="newt" class="tab-pane fade in active">
+					<h3>Новые твиты</h3>
+					<table id="tweets" class="table table-hover" width="100%">
+						<colgroup>
+							<col style="width:10%">
+							<col style="width:20%">
+							<col style="width:70%">
+						</colgroup>
+					</table>
+				</div>
+
+				<div id="onlinet" class="tab-pane fade">
+					<h3>Онлайн</h3>
+					<table id="online-list" class="table table-hover table-bordered" width="100%">
+						<tr class="success" align="center">
+							<th>Адрес</th>
+							<th>Порт</th>
+							<th>Время входа</th>
+							<th>Время в сети</th>
+							<th>Приватный твит</th>
+						</tr>
+					</table>
+				</div>
+
+				<div id="chatt" class="tab-pane fade">
+					<h3>Приватный чат</h3>
+					<p>Приватный чат один на один.</p>
+				</div>
+			</div>
 		</div>
-   
+
     </form>
 </div>
 </body>

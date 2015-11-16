@@ -95,8 +95,6 @@ public class CServer extends AbstractVerticle
         mHandler.bridge(opts, event -> {
             if (event.type() == PUBLISH || event.type() == SEND) publishEvent(event);
 
-            //клиент присоединился/покинул чат.
-            //if (event.type() == SOCKET_CREATED || event.type() == SOCKET_CLOSED)
             if (event.type() == REGISTER || event.type() == UNREGISTER) registerEvent(event);
 
             event.complete(true);
@@ -122,7 +120,6 @@ public class CServer extends AbstractVerticle
             jmsg.put("addr", ip);
             jmsg.put("message", message);
 
-
             log.debug("Publish, ip: " + ip + ", port: " + port);
 
             vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
@@ -146,12 +143,14 @@ public class CServer extends AbstractVerticle
 
                 String ip = event.socket().remoteAddress().host();
                 String port = String.valueOf(event.socket().remoteAddress().port());
+                String time = Calendar.getInstance().getTime().toString();
 
                 JSONObject jmsg = new JSONObject();
                 jmsg.put("type", "register");
                 jmsg.put("count", CClient.count.get());
                 jmsg.put("addr", ip);
                 jmsg.put("port", port);
+                jmsg.put("entryTime", time);
 
                 if (event.type() == REGISTER) log.info("Register handler, ip:port [" + ip + ":" + port + "]");
                 else log.info("Unregister handler, ip:port [" + ip + ":" + port + "]");
