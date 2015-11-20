@@ -63,8 +63,8 @@
 
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
-			var json = JSON.parse(msg.body);
-			
+			var json = jQuery.parseJSON(msg.body);
+
 			if (json.type == 'publish')
 			{
 				var t = Date.parse(json.time);
@@ -77,7 +77,7 @@
 					bgc = ' bgcolor=\"#ffffff\"';
 
 				var $messageLine = $('<tr' + bgc + '><td align="left">' + tf
-					+ '</td><td align="left">' + json.addr
+					+ '</td><td align="left">' + json.host
 					+ '</td><td>' + json.message
 					+ '</td></tr>');
 
@@ -92,10 +92,42 @@
 
 			if (json.type == 'register')
 			{
-				cntOnline++;
-				$('#online').text(json.count);
+				$('#online').text(json.online);
 
-				var et = Date.parse(json.entryTime);
+				for(var i = 0; i < json.onlinelist.length; i++)
+				{
+					var et = Date.parse(json.onlinelist[i].logontime);
+					var etf = dateFormat(et, "HH:MM:ss");
+					var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
+								'onclick="privateTweet(' + i + ')">' +
+								'<span class="glyphicon glyphicon-envelope"></span></button>';
+
+					var bgc2 = '';
+					if (i % 2 == 1)
+						bgc2 = ' bgcolor="#ffffff"';
+
+
+					var duration = '<span id="runner' + i + '"></span>';
+
+					var $newUser = $('<tr' + bgc2 + '><td>' + json.onlinelist[i].host
+						+ '</td><td>' + json.onlinelist[i].port
+						+ '</td><td>' + etf
+						+ '</td><td>' + duration + ' сек.'
+						+ '</td><td align="center" border="0">' + message
+						+ '</td></tr>');
+
+					$('#online-list').append($newUser);
+
+					//$('#runner' + cntOnline).runner('start');
+					//$('#runner' + cntOnline).runner('start');
+					$('#runner' + i).runner({autostart: true, startAt: 9000000, milliseconds: false});
+				}
+
+				/*
+				cntOnline++;
+				$('#online').text(json.online);
+
+				var et = Date.parse(json.logontime);
 				var etf = dateFormat(et, "HH:MM:ss");
 				var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
 							'onclick="privateTweet(' + cntOnline + ')">' +
@@ -108,8 +140,7 @@
 
 				var duration = '<span id="runner' + cntOnline + '"></span>';
 
-
-				var $newUser = $('<tr' + bgc2 + '><td>' + json.addr
+				var $newUser = $('<tr' + bgc2 + '><td>' + json.host
 					+ '</td><td>' + json.port
 					+ '</td><td>' + etf
 					+ '</td><td>' + duration + ' сек.'
@@ -120,7 +151,7 @@
 
 				//$('#runner' + cntOnline).runner('start');
 				//$('#runner' + cntOnline).runner('start');
-				$('#runner' + cntOnline).runner({autostart: true, startAt: 9000000, milliseconds: false});
+				$('#runner' + cntOnline).runner({autostart: true, startAt: 9000000, milliseconds: false});*/
 			}
 		});
 	  };

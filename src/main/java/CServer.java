@@ -1,4 +1,6 @@
+import com.google.gson.Gson;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Starter;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
@@ -7,19 +9,21 @@ import io.vertx.ext.web.handler.sockjs.BridgeEvent;
 import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
-import org.json.simple.JSONObject;
 
 import java.io.IOException;
+import java.net.BindException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
 public class CServer extends AbstractVerticle
 {
-    //private static int m_cntClients = 0;
     private Logger log = LoggerFactory.getLogger(CServer.class);
 
     private SockJSHandler mHandler = null;
@@ -68,21 +72,51 @@ public class CServer extends AbstractVerticle
         return true;
     }
 
-    private int getFreePort()
+    private int getFreePort(int hostPort)
     {
         try
         {
-            ServerSocket socket = new ServerSocket(0);
+            ServerSocket socket = new ServerSocket(hostPort);
             int port = socket.getLocalPort();
             socket.close();
 
             return port;
+        }
+        catch (BindException e)
+        {
+            if (hostPort != 0)
+                return getFreePort(0);
+
+            log.error("Failed to get the free port: [" + e.toString() + "]");
+            return -1;
         }
         catch (IOException e)
         {
             log.error("Failed to get the free port: [" + e.toString() + "]");
             return -1;
         }
+    }
+
+    private int getFreePort()
+    {
+        int hostPort = 8080;
+
+        if (Starter.PROCESS_ARGS != null
+                && Starter.PROCESS_ARGS.size() > 0)
+        {
+            try
+            {
+                hostPort = Integer.valueOf(Starter.PROCESS_ARGS.get(0));
+            } catch (NumberFormatException e)
+            {
+                log.warn("Invalid port: [" + Starter.PROCESS_ARGS.get(0) + "]");
+            }
+        }
+
+        if (hostPort < 0 || hostPort > 65535)
+            hostPort = 8080;
+
+        return getFreePort(hostPort);
     }
 
     protected void handle()
@@ -109,20 +143,21 @@ public class CServer extends AbstractVerticle
             if (!verifyMessage(message))
                 return false;
 
+            Gson gson = new Gson();
             String ip = event.socket().remoteAddress().host();
             String port = String.valueOf(event.socket().remoteAddress().port());
 
             String time = Calendar.getInstance().getTime().toString();
 
-            JSONObject jmsg = new JSONObject();
-            jmsg.put("type", "publish");
-            jmsg.put("time", time);
-            jmsg.put("addr", ip);
-            jmsg.put("message", message);
+            Map<String, Object> parms = new HashMap<String, Object>(4);
+            parms.put("type", "publish");
+            parms.put("time", time);
+            parms.put("host", ip);
+            parms.put("message", message);
 
-            log.debug("Publish, ip: " + ip + ", port: " + port);
+            log.debug("Publish, host: " + ip + ", port: " + port);
 
-            vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
+            vertx.eventBus().publish("chat.to.client", gson.toJson(parms));
             return true;
         }
         else
@@ -136,33 +171,38 @@ public class CServer extends AbstractVerticle
             @Override
             public void run()
             {
+                Gson gson = new Gson();
+                String host = event.socket().remoteAddress().host();
+                int port = event.socket().remoteAddress().port();
+                Date time = Calendar.getInstance().getTime();
+
                 if (event.type() == REGISTER)
-                    CClient.count.incrementAndGet();
+                    new CClient(host, port, time);
                 else
-                    CClient.count.decrementAndGet();
+                    CClient.unregisterClient(host, port);
 
-                String ip = event.socket().remoteAddress().host();
-                String port = String.valueOf(event.socket().remoteAddress().port());
-                String time = Calendar.getInstance().getTime().toString();
+                Map<String, Object> parms = new HashMap<String, Object>(3);
+                parms.put("type", "register");
+                parms.put("online", CClient.getOnline());
+                //parms.put("host", host);
+                //parms.put("port", port);
+                //parms.put("logontime", time.toString());
+                //parms.put("onlinelist", CClient.toJsonList());
+                parms.put("onlinelist", CClient.getOnlineList());
 
-                JSONObject jmsg = new JSONObject();
-                jmsg.put("type", "register");
-                jmsg.put("count", CClient.count.get());
-                jmsg.put("addr", ip);
-                jmsg.put("port", port);
-                jmsg.put("entryTime", time);
+                log.info("JSON = " + gson.toJson(parms));
 
-                if (event.type() == REGISTER) log.info("Register handler, ip:port [" + ip + ":" + port + "]");
-                else log.info("Unregister handler, ip:port [" + ip + ":" + port + "]");
+                if (event.type() == REGISTER) log.info("Register handler, host:port [" + host + ":" + port + "]");
+                else log.info("Unregister handler, host:port [" + host + ":" + port + "]");
 
-                vertx.eventBus().publish("chat.to.client", jmsg.toJSONString());
+                vertx.eventBus().publish("chat.to.client", gson.toJson(parms));
             }
         }).start();
     }
 
     protected boolean verifyMessage(String msg)
     {
-        if (msg.length() == 0 || msg.length() > 140)
+        if (msg.length() < 1 || msg.length() >= 140)
             return false;
         else
             return true;

@@ -5,9 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.function.Consumer;
 
-/**
- * Created by Alexander on 15.11.2015.
- */
 public class CVerticleLoader
 {
     public static void main(String[] args)
