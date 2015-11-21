@@ -8,7 +8,7 @@
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertx-eventbus.js"></script>
 	<script src="date-format.js"></script>
-	<script src="stopwatch.js"></script>
+	<!--script src="stopwatch.js"></script-->
 
 	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
@@ -59,18 +59,25 @@
 	<!--link href="./resource/css/bootstrap-theme.css" rel="stylesheet"-->
 
     <script>
-
+		
+	  var cntOnline = 0;
+	  var host = null, port = null;
+	  
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
 	  {
-		var cntOnline = 0;
+		//var cntOnline = 0;
 
 		var isNewSession = true;
 		var isFirstMessage = true;
-		var host = null, port = null;
+		//var host = null, port = null;
+
+		eb.registerHandler("data.on.chat", dataChatProcessing);
 
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
+		    console.log('MSG: ' + msg.body);
+
 			var json = jQuery.parseJSON(msg.body);
 
 			if (json.type == 'publish')
@@ -102,17 +109,18 @@
 
 			if (json.type == 'register')
 			{
-				cntOnline++;
+				//cntOnline++;
 				$('#online').text(json.online);
 
-				var logonTime = Date.parse(json.client.logontime);
+				var logonTime = new Date(json.client.logontime);
 				var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
 
 				var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
-							+ 'onclick="privateTweetFun(' + cntOnline + ')" title="Приватный твит">'
+							+ 'onclick="privateTweetFun(' + json.client.id + ')" title="Приватный твит">'
 							+ '<span class="glyphicon glyphicon-envelope"></span></button>';
 
                 var bgcolor = ' ';
+                var title = '';
                 if (isNewSession)
                 {
                     bgcolor = ' bgcolor="#ffffff"';
@@ -120,11 +128,14 @@
                     isNewSession = false;
                     host = json.client.host;
                     port = json.client.port;
+                    title = ' title="Вы"';
+
+                    //eb.unregisterHandler("data.on.chat", dataChatProcessing);
                 }
 
-				var duration = '<span id="runner' + cntOnline + '"></span>';
+				var duration = '<span id="runner' + json.client.id + '"></span>';
 
-				var $newClient = $('<tr' + bgcolor + ' id="clientId' + json.client.id + '"><td>' + json.client.host
+				var $newClient = $('<tr' + bgcolor + ' id="clientId' + json.client.id + '"' + title + '><td>' + json.client.host
 					+ '</td><td>' + json.client.port
 					+ '</td><td>' + logonTimeFormat
 					+ '</td><td>' + duration + ' сек'
@@ -133,58 +144,72 @@
 
 				$('#tableOnline').append($newClient);
 
-				$('#runner' + cntOnline).runner({autostart: true, milliseconds: false});
+				$('#runner' + json.client.id).runner({autostart: true, milliseconds: false});
             }
-
-
-
-
-
-				/*
-				for(var i = 0; i < json.onlinelist.length; i++)
-				{
-					console.log('curTime=' + curTime);
-
-					var et = Date.parse(json.onlinelist[i].logontime);
-					var etf = dateFormat(et, "HH:MM:ss");
-					var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
-								'onclick="privateTweet(' + i + ')">' +
-								'<span class="glyphicon glyphicon-envelope"></span></button>';
-
-					var bgc2 = '';
-					if (i % 2 == 1)
-						bgc2 = ' bgcolor="#ffffff"';
-
-
-					var duration = '<span id="runner' + i + '"></span>';
-
-					var $newUser = $('<tr' + bgc2 + '><td>' + json.onlinelist[i].host
-						+ '</td><td>' + json.onlinelist[i].port
-						+ '</td><td>' + etf
-						+ '</td><td>' + duration + ' сек.'
-						+ '</td><td align="center" border="0" title="Приватный твит">' + message
-						+ '</td></tr>');
-
-					$('#tableOnline').append($newUser);
-
-					//$('#runner' + cntOnline).runner('start');
-					//$('#runner' + cntOnline).runner('start');
-					var passedTime = curTime - json.onlinelist[i].logontime;
-					console.log('passedTime=' + passedTime);
-					$('#runner' + i).runner({autostart: true, startAt: passedTime, milliseconds: false});
-				}
-				*/
-
 
 			if (json.type == 'unregister')
 			{
-				cntOnline--;
+				//cntOnline--;
 				$('#online').text(json.online);
 				if (json.client != null)
 				    $('#clientId' + json.client.id).remove();
 			}
 		});
+
 	  };
+
+	  function dataChatProcessing(err, msg)
+	  {
+	    console.log('SEND: ' + msg.body);
+		 
+		var json = jQuery.parseJSON(msg.body);
+
+			if (json.type == 'send')
+			{
+				for(var i = 0; i < json.clients.length; i++)
+				{
+					//cntOnline++;
+					
+					//console.log('web.host: ' + host + ' web.port: ' + port 
+					//		+ ' get.host: ' + json.clients[i].host + ' get.port: ' + json.clients[i].port);
+					
+					console.log('host:port ' + json.clients[i].host + ':' + json.clients[i].port + ' time=' + json.clients[i].logontime);
+					
+					if (json.clients[i].host == host && json.clients[i].port == port)
+						continue;
+					
+					var logonTime = new Date(json.clients[i].logontime);
+					var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
+					
+					console.log('logonTime=' + logonTime + ' logonTimeFormat=' + logonTimeFormat);
+
+					var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
+								+ 'onclick="privateTweetFun(' + json.clients[i].id + ')" title="Приватный твит">'
+								+ '<span class="glyphicon glyphicon-envelope"></span></button>';
+
+
+					var duration = '<span id="runner' + json.clients[i].id + '"></span>';
+	
+					var $newClient = $('<tr id="clientId' + json.clients[i].id + '"><td>' + json.clients[i].host
+					//var $newClient = $('<tr><td>' + json.clients[i].host
+						+ '</td><td>' + json.clients[i].port
+						+ '</td><td>' + logonTimeFormat
+						+ '</td><td>' + duration + ' сек'
+						+ '</td><td align="center" border="0">' + privateTweetBtn
+						+ '</td></tr>');
+
+					$('#tableOnline').append($newClient);
+					
+					
+					var passedTime = new Date().getTime() - json.clients[i].logontime;
+
+					$('#runner' + json.clients[i].id).runner({autostart: true, startAt: passedTime, milliseconds: false});
+				}
+				
+				eb.unregisterHandler("data.on.chat", dataChatProcessing);
+			}
+	  }
+
 
 	  function privateTweetFun(num)
 	  {

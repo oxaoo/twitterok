@@ -86,4 +86,26 @@ public class CClient
         return clients.values();
     }
 
+    @Override
+    public String toString()
+    {
+        return "CClient{" +
+                "id=" + id +
+                ", host='" + host + '\'' +
+                ", port=" + port +
+                ", logontime=" + logontime +
+                '}';
+    }
+
+    public static CClient getClient(String host, int port)
+    {
+        String addr = host.concat(":").concat(String.valueOf(port));
+        if (addrMap.containsKey(addr))
+        {
+            int id = addrMap.get(addr);
+            return clients.get(id);
+        }
+
+        return null;
+    }
 }
