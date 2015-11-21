@@ -148,14 +148,15 @@ public class CServer extends AbstractVerticle
 
             Gson gson = new Gson();
             String ip = event.socket().remoteAddress().host();
-            String port = String.valueOf(event.socket().remoteAddress().port());
+            int port = event.socket().remoteAddress().port();
 
             String time = Calendar.getInstance().getTime().toString();
 
-            Map<String, Object> parms = new HashMap<String, Object>(4);
+            Map<String, Object> parms = new HashMap<String, Object>(5);
             parms.put("type", "publish");
             parms.put("time", time);
             parms.put("host", ip);
+            parms.put("port", port);
             parms.put("message", message);
 
             log.debug("Publish, host: " + ip + ", port: " + port);
@@ -179,9 +180,9 @@ public class CServer extends AbstractVerticle
                 Date time = Calendar.getInstance().getTime();
 
                 Map<String, Object> parms = new HashMap<String, Object>(3);
-                CClient newClient = new CClient(host, port, time);
+                CClient client = new CClient(host, port, time);
                 parms.put("type", "register");
-                parms.put("newClient", newClient);
+                parms.put("client", client);
                 parms.put("online", CClient.getOnline());
                 //parms.put("onlinelist", CClient.getOnlineList());
 
@@ -202,13 +203,15 @@ public class CServer extends AbstractVerticle
             {
                 String host = event.socket().remoteAddress().host();
                 int port = event.socket().remoteAddress().port();
-                Date time = Calendar.getInstance().getTime();
+                //Date time = Calendar.getInstance().getTime();
 
-                Map<String, Object> parms = new HashMap<String, Object>(2);
+                Map<String, Object> parms = new HashMap<String, Object>(3);
 
-                CClient.unregisterClient(host, port);
+                CClient client = CClient.unregisterClient(host, port);
                 parms.put("type", "unregister");
                 parms.put("online", CClient.getOnline());
+                parms.put("client", client);
+
                 //parms.put("onlinelist", CClient.getOnlineList());
 
                 log.info("JSON = " + new Gson().toJson(parms));

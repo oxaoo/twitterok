@@ -48,6 +48,12 @@
 			background-color: #dff0d8 !important;
 		}
 
+        #tableOnline th
+        {
+            text-align: center;
+            vertical-align: middle;
+        }
+
 
     </style>
 	<!--link href="./resource/css/bootstrap-theme.css" rel="stylesheet"-->
@@ -57,9 +63,11 @@
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
 	  {
-		var check = true;
 		var cntOnline = 0;
-		var cntMsg = 0;
+
+		var isNewSession = true;
+		var isFirstMessage = true;
+		var host = null, port = null;
 
 		eb.registerHandler("chat.to.client", function (err, msg)
 		{
@@ -70,21 +78,23 @@
 				var t = Date.parse(json.time);
 				var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
 
-				cntMsg++;
-				//var bgc = '';
-				//var bgc = ' bgcolor="#dff0d8"';
-				//if (cntMsg % 2 == 0)
-					bgc = ' bgcolor=\"#ffffff\"';
+				var bgcolor = ' bgcolor="#ffffff"';
 
-				var $messageLine = $('<tr' + bgc + '><td align="left">' + tf
+				if (host != null && port != null
+				    && host == json.host && port == json.port)
+				{
+				    bgcolor = ' bgcolor="#dff0d8"';
+				}
+
+				var $messageLine = $('<tr' + bgcolor + '><td align="left">' + tf
 					+ '</td><td align="left">' + json.host
 					+ '</td><td>' + json.message
 					+ '</td></tr>');
 
-				if (check)
+				if (isFirstMessage)
 				{
 					$('#tweets').append($messageLine);
-					check = false;
+					isFirstMessage = false;
 				}
 				else
 					$('#tweets > tbody > tr:first').before($messageLine);
@@ -95,32 +105,37 @@
 				cntOnline++;
 				$('#online').text(json.online);
 
-					var et = Date.parse(json.newClient.logontime);
-					var etf = dateFormat(et, "HH:MM:ss");
+				var logonTime = Date.parse(json.client.logontime);
+				var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
 
-					console.log('etf=' + etf);
+				var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
+							+ 'onclick="privateTweetFun(' + cntOnline + ')" title="Приватный твит">'
+							+ '<span class="glyphicon glyphicon-envelope"></span></button>';
 
-					var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
-								'onclick="privateTweet(' + cntOnline + ')">' +
-								'<span class="glyphicon glyphicon-envelope"></span></button>';
+                var bgcolor = ' ';
+                if (isNewSession)
+                {
+                    bgcolor = ' bgcolor="#ffffff"';
+                    privateTweetBtn = ' ';
+                    isNewSession = false;
+                    host = json.client.host;
+                    port = json.client.port;
+                }
 
-					//var bgc2 = '';
-					//if (i % 2 == 1)
-						bgc2 = ' bgcolor="#ffffff"';
+				var duration = '<span id="runner' + cntOnline + '"></span>';
 
+				var $newClient = $('<tr' + bgcolor + ' id="clientId' + json.client.id + '"><td>' + json.client.host
+					+ '</td><td>' + json.client.port
+					+ '</td><td>' + logonTimeFormat
+					+ '</td><td>' + duration + ' сек'
+					+ '</td><td align="center" border="0">' + privateTweetBtn
+					+ '</td></tr>');
 
-					var duration = '<span id="runner' + cntOnline + '"></span>';
+				$('#tableOnline').append($newClient);
 
-					var $newUser = $('<tr' + bgc2 + '><td>' + json.newClient.host
-						+ '</td><td>' + json.newClient.port
-						+ '</td><td>' + etf
-						+ '</td><td>' + duration + ' сек'
-						+ '</td><td align="center" border="0">' + message
-						+ '</td></tr>');
+				$('#runner' + cntOnline).runner({autostart: true, milliseconds: false});
+            }
 
-					$('#online-list').append($newUser);
-
-					$('#runner' + cntOnline).runner({autostart: true, milliseconds: false});
 
 
 
@@ -147,10 +162,10 @@
 						+ '</td><td>' + json.onlinelist[i].port
 						+ '</td><td>' + etf
 						+ '</td><td>' + duration + ' сек.'
-						+ '</td><td align="center" border="0">' + message
+						+ '</td><td align="center" border="0" title="Приватный твит">' + message
 						+ '</td></tr>');
 
-					$('#online-list').append($newUser);
+					$('#tableOnline').append($newUser);
 
 					//$('#runner' + cntOnline).runner('start');
 					//$('#runner' + cntOnline).runner('start');
@@ -159,17 +174,19 @@
 					$('#runner' + i).runner({autostart: true, startAt: passedTime, milliseconds: false});
 				}
 				*/
-			}
+
 
 			if (json.type == 'unregister')
 			{
 				cntOnline--;
 				$('#online').text(json.online);
+				if (json.client != null)
+				    $('#clientId' + json.client.id).remove();
 			}
 		});
 	  };
 
-	  function privateTweet(num)
+	  function privateTweetFun(num)
 	  {
 		alert('Num: ' + num);
 	  }
@@ -264,7 +281,7 @@
 				<li class="active"><a data-toggle="tab" href="#newt">
 					<span class="glyphicon glyphicon-fire"></span>
 					 Новые твиты</a></li>
-				<li><a data-toggle="tab" href="#onlinet">
+				<li><a data-toggle="tab" href="#paneTableOnline">
 					<span class="glyphicon glyphicon-user"></span>
 					 Онлайн</a></li>
 				<li><a data-toggle="tab" href="#chatt">
@@ -284,15 +301,15 @@
 					</table>
 				</div>
 
-				<div id="onlinet" class="tab-pane fade">
+				<div id="paneTableOnline" class="tab-pane fade">
 					<h3>Онлайн</h3>
-					<table id="online-list" class="table table-hover table-bordered" width="100%">
-						<tr class="success" align="center">
+					<table id="tableOnline" class="table table-hover table-bordered text-center" width="100%">
+						<tr class="success">
 							<th>Адрес</th>
 							<th>Порт</th>
 							<th>Время входа</th>
 							<th>Время в сети</th>
-							<th>Приватный твит</th>
+							<th> </th>
 						</tr>
 					</table>
 				</div>

@@ -32,18 +32,18 @@ public class CClient
         clients.put(id, this);
     }
 
-    public static boolean unregisterClient(String host, int port)
+    public static CClient unregisterClient(String host, int port)
     {
         String addr = host.concat(":").concat(String.valueOf(port));
         if (addrMap.containsKey(addr))
         {
             int id = addrMap.get(addr);
-            clients.remove(id);
+            CClient unregClient = clients.remove(id);
             online.decrementAndGet();
-            return true;
+            return unregClient;
         }
 
-        return false;
+        return null;
     }
 
     public static int getOnline()
