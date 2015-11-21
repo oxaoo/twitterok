@@ -72,8 +72,8 @@
 
 				cntMsg++;
 				//var bgc = '';
-				var bgc = ' bgcolor="#dff0d8"';
-				if (cntMsg % 2 == 0)
+				//var bgc = ' bgcolor="#dff0d8"';
+				//if (cntMsg % 2 == 0)
 					bgc = ' bgcolor=\"#ffffff\"';
 
 				var $messageLine = $('<tr' + bgc + '><td align="left">' + tf
@@ -92,10 +92,44 @@
 
 			if (json.type == 'register')
 			{
+				cntOnline++;
 				$('#online').text(json.online);
 
+					var et = Date.parse(json.newClient.logontime);
+					var etf = dateFormat(et, "HH:MM:ss");
+
+					console.log('etf=' + etf);
+
+					var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
+								'onclick="privateTweet(' + cntOnline + ')">' +
+								'<span class="glyphicon glyphicon-envelope"></span></button>';
+
+					//var bgc2 = '';
+					//if (i % 2 == 1)
+						bgc2 = ' bgcolor="#ffffff"';
+
+
+					var duration = '<span id="runner' + cntOnline + '"></span>';
+
+					var $newUser = $('<tr' + bgc2 + '><td>' + json.newClient.host
+						+ '</td><td>' + json.newClient.port
+						+ '</td><td>' + etf
+						+ '</td><td>' + duration + ' сек'
+						+ '</td><td align="center" border="0">' + message
+						+ '</td></tr>');
+
+					$('#online-list').append($newUser);
+
+					$('#runner' + cntOnline).runner({autostart: true, milliseconds: false});
+
+
+
+
+				/*
 				for(var i = 0; i < json.onlinelist.length; i++)
 				{
+					console.log('curTime=' + curTime);
+
 					var et = Date.parse(json.onlinelist[i].logontime);
 					var etf = dateFormat(et, "HH:MM:ss");
 					var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
@@ -120,38 +154,17 @@
 
 					//$('#runner' + cntOnline).runner('start');
 					//$('#runner' + cntOnline).runner('start');
-					$('#runner' + i).runner({autostart: true, startAt: 9000000, milliseconds: false});
+					var passedTime = curTime - json.onlinelist[i].logontime;
+					console.log('passedTime=' + passedTime);
+					$('#runner' + i).runner({autostart: true, startAt: passedTime, milliseconds: false});
 				}
+				*/
+			}
 
-				/*
-				cntOnline++;
+			if (json.type == 'unregister')
+			{
+				cntOnline--;
 				$('#online').text(json.online);
-
-				var et = Date.parse(json.logontime);
-				var etf = dateFormat(et, "HH:MM:ss");
-				var message = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"' +
-							'onclick="privateTweet(' + cntOnline + ')">' +
-							'<span class="glyphicon glyphicon-envelope"></span></button>';
-
-				var bgc2 = '';
-				if (cntOnline % 2 == 1)
-					bgc2 = ' bgcolor="#ffffff"';
-
-
-				var duration = '<span id="runner' + cntOnline + '"></span>';
-
-				var $newUser = $('<tr' + bgc2 + '><td>' + json.host
-					+ '</td><td>' + json.port
-					+ '</td><td>' + etf
-					+ '</td><td>' + duration + ' сек.'
-					+ '</td><td align="center" border="0">' + message
-					+ '</td></tr>');
-
-				$('#online-list').append($newUser);
-
-				//$('#runner' + cntOnline).runner('start');
-				//$('#runner' + cntOnline).runner('start');
-				$('#runner' + cntOnline).runner({autostart: true, startAt: 9000000, milliseconds: false});*/
 			}
 		});
 	  };

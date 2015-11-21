@@ -14,7 +14,7 @@ public class CClient
     private final int id;
     private final String host;
     private final int port;
-    private final Date logontime;
+    private final long logontime;
 
     public CClient(String host, int port, Date time)
     {
@@ -24,7 +24,7 @@ public class CClient
 
         this.host = host;
         this.port = port;
-        this.logontime = time;
+        this.logontime = time.getTime();
 
         String addr = host.concat(":").concat(String.valueOf(port));
         addrMap.put(addr, id);
@@ -73,7 +73,7 @@ public class CClient
         if (this.id == c.id
                 && this.host.equals(c.host)
                 && this.port == c.port
-                && this.logontime.getTime() == c.logontime.getTime())
+                && this.logontime == c.logontime)
             return true;
 
         return false;

@@ -129,11 +129,14 @@ public class CServer extends AbstractVerticle
         mHandler.bridge(opts, event -> {
             if (event.type() == PUBLISH || event.type() == SEND) publishEvent(event);
 
-            if (event.type() == REGISTER || event.type() == UNREGISTER) registerEvent(event);
+            if (event.type() == REGISTER) registerEvent(event);
+
+            if (event.type() == UNREGISTER) unregisterEvent(event);
 
             event.complete(true);
         });
     }
+
 
     protected boolean publishEvent(BridgeEvent event)
     {
@@ -171,31 +174,47 @@ public class CServer extends AbstractVerticle
             @Override
             public void run()
             {
-                Gson gson = new Gson();
                 String host = event.socket().remoteAddress().host();
                 int port = event.socket().remoteAddress().port();
                 Date time = Calendar.getInstance().getTime();
 
-                if (event.type() == REGISTER)
-                    new CClient(host, port, time);
-                else
-                    CClient.unregisterClient(host, port);
-
                 Map<String, Object> parms = new HashMap<String, Object>(3);
+                CClient newClient = new CClient(host, port, time);
                 parms.put("type", "register");
+                parms.put("newClient", newClient);
                 parms.put("online", CClient.getOnline());
-                //parms.put("host", host);
-                //parms.put("port", port);
-                //parms.put("logontime", time.toString());
-                //parms.put("onlinelist", CClient.toJsonList());
-                parms.put("onlinelist", CClient.getOnlineList());
+                //parms.put("onlinelist", CClient.getOnlineList());
 
-                log.info("JSON = " + gson.toJson(parms));
+                log.info("JSON = " + new Gson().toJson(parms));
+                log.info("Register handler, host:port [" + host + ":" + port + "]");
 
-                if (event.type() == REGISTER) log.info("Register handler, host:port [" + host + ":" + port + "]");
-                else log.info("Unregister handler, host:port [" + host + ":" + port + "]");
+                vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
+            }
+        }).start();
+    }
 
-                vertx.eventBus().publish("chat.to.client", gson.toJson(parms));
+    protected void unregisterEvent(BridgeEvent event)
+    {
+        new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                String host = event.socket().remoteAddress().host();
+                int port = event.socket().remoteAddress().port();
+                Date time = Calendar.getInstance().getTime();
+
+                Map<String, Object> parms = new HashMap<String, Object>(2);
+
+                CClient.unregisterClient(host, port);
+                parms.put("type", "unregister");
+                parms.put("online", CClient.getOnline());
+                //parms.put("onlinelist", CClient.getOnlineList());
+
+                log.info("JSON = " + new Gson().toJson(parms));
+                log.info("Unregister handler, host:port [" + host + ":" + port + "]");
+
+                vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
             }
         }).start();
     }
