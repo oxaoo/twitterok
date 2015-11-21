@@ -15,12 +15,14 @@ public class CClient
     private final String host;
     private final int port;
     private final long logontime;
+    private final transient UUID uuid;
 
     public CClient(String host, int port, Date time)
     {
         count.incrementAndGet();
         online.incrementAndGet();
         id = count.get();
+        uuid = UUID.randomUUID();
 
         this.host = host;
         this.port = port;
@@ -73,7 +75,8 @@ public class CClient
         if (this.id == c.id
                 && this.host.equals(c.host)
                 && this.port == c.port
-                && this.logontime == c.logontime)
+                && this.logontime == c.logontime
+                && this.uuid == c.uuid)
             return true;
 
         return false;
@@ -94,6 +97,7 @@ public class CClient
                 ", host='" + host + '\'' +
                 ", port=" + port +
                 ", logontime=" + logontime +
+                ", uuid=" + uuid +
                 '}';
     }
 
@@ -107,5 +111,10 @@ public class CClient
         }
 
         return null;
+    }
+
+    public UUID getUuid()
+    {
+        return uuid;
     }
 }

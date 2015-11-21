@@ -121,11 +121,14 @@ public class CServer extends AbstractVerticle
 
     protected void handle()
     {
+        String uuidRegex = "#([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#){3}";
         //назначение адресов для моста шины событий.
         BridgeOptions opts = new BridgeOptions()
                 .addInboundPermitted(new PermittedOptions().setAddress("chat.to.server"))
                 .addOutboundPermitted(new PermittedOptions().setAddress("chat.to.client"))
-                .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"));
+                .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"))
+                .addInboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex))
+                .addOutboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex));
 
         mHandler.bridge(opts, event -> {
             if (event.type() == PUBLISH || event.type() == SEND) publishEvent(event);
@@ -180,10 +183,6 @@ public class CServer extends AbstractVerticle
                 @Override
                 public void run()
                 {
-
-                    //String inAddress = event.rawMessage().getString("address");
-                    //log.info("INADDRESS: " + inAddress);
-
                     String host = event.socket().remoteAddress().host();
                     int port = event.socket().remoteAddress().port();
                     Date time = Calendar.getInstance().getTime();
@@ -192,15 +191,12 @@ public class CServer extends AbstractVerticle
                     CClient client = new CClient(host, port, time);
                     parms.put("type", "register");
                     parms.put("client", client);
+                    parms.put("uuid", client.getUuid());
                     parms.put("online", CClient.getOnline());
-                    //parms.put("onlinelist", CClient.getOnlineList());
 
-                    //log.info("JSON = " + new Gson().toJson(parms));
-                    //log.info("Register handler, host:port [" + host + ":" + port + "]");
+                    log.info("JSON PARMS: " + new Gson().toJson(parms));
 
                     vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
-
-
 
 
                     Map<String, Object> parms2 = new HashMap<String, Object>(3);
@@ -208,53 +204,23 @@ public class CServer extends AbstractVerticle
                     parms2.put("client", client);
                     parms2.put("clients", CClient.getOnlineList());
 
-                    //log.info("Online list: " + CClient.getOnlineList().toString());
+                    log.info("JSON PARMS2: " + new Gson().toJson(parms2));
+
                     vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
                 }
             }).start();
-
-        /*
-        else //data.on.chat
-            new Thread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    String host = event.socket().remoteAddress().host();
-                    int port = event.socket().remoteAddress().port();
-                    //CClient client = CClient.getClient(host, port);
-
-                    Map<String, Object> parms2 = new HashMap<String, Object>(3);
-                    parms2.put("type", "send");
-                    parms2.put("host", host);
-                    parms2.put("port", port);
-                    //parms2.put("client", client);
-                    parms2.put("clients", CClient.getOnlineList());
-
-                    //log.info("Online list: " + CClient.getOnlineList().toString());
-                    vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
-                    //log.info("End send...");
-                }
-            }).start();*/
     }
 
     protected void unregisterEvent(BridgeEvent event)
     {
-        //log.info("EVENT: " + event.toString());
-        /*if (event.rawMessage() != null
-            && event.rawMessage().getString("address").equals("chat.to.client"))*/
         if (event.rawMessage() == null)
             new Thread(new Runnable()
             {
                 @Override
                 public void run()
                 {
-                    //String inAddress = event.rawMessage().getString("address");
-                    //log.info("INADDRESS: " + inAddress);
-
                     String host = event.socket().remoteAddress().host();
                     int port = event.socket().remoteAddress().port();
-                    //Date time = Calendar.getInstance().getTime();
 
                     Map<String, Object> parms = new HashMap<String, Object>(3);
 
@@ -263,10 +229,7 @@ public class CServer extends AbstractVerticle
                     parms.put("online", CClient.getOnline());
                     parms.put("client", client);
 
-                    //parms.put("onlinelist", CClient.getOnlineList());
-
-                    log.info("JSON = " + new Gson().toJson(parms));
-                    log.info("Unregister handler, host:port [" + host + ":" + port + "]");
+                    log.info("Unregister handler: " + client.toString());
 
                     vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
                 }

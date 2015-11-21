@@ -61,23 +61,19 @@
     <script>
 		
 	  var cntOnline = 0;
-	  var host = null, port = null;
+	  var host = null, port = null, uuid = null;
+	  var isNewSession = true;
+	  var isFirstMessage = true;
 	  
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
 	  {
-		//var cntOnline = 0;
-
-		var isNewSession = true;
-		var isFirstMessage = true;
-		//var host = null, port = null;
-
 		eb.registerHandler("data.on.chat", dataChatProcessing);
-
-		eb.registerHandler("chat.to.client", function (err, msg)
-		{
-		    console.log('MSG: ' + msg.body);
-
+		eb.registerHandler("chat.to.client", eventChatProcessing);
+	  };
+	  
+	  function eventChatProcessing(err, msg)
+	  {
 			var json = jQuery.parseJSON(msg.body);
 
 			if (json.type == 'publish')
@@ -109,7 +105,6 @@
 
 			if (json.type == 'register')
 			{
-				//cntOnline++;
 				$('#online').text(json.online);
 
 				var logonTime = new Date(json.client.logontime);
@@ -129,8 +124,11 @@
                     host = json.client.host;
                     port = json.client.port;
                     title = ' title="Вы"';
-
-                    //eb.unregisterHandler("data.on.chat", dataChatProcessing);
+					
+					uuid = json.client.uuid;
+					//.*#b36d7654-9da5-440a-925c-d840dea7aece#.*
+					var regexUuid = '#([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#){0,2}';
+					eb.registerHandler(regexUuid + uuid + regexUuid, privateChatProcessing);
                 }
 
 				var duration = '<span id="runner' + json.client.id + '"></span>';
@@ -149,33 +147,23 @@
 
 			if (json.type == 'unregister')
 			{
-				//cntOnline--;
 				$('#online').text(json.online);
 				if (json.client != null)
 				    $('#clientId' + json.client.id).remove();
 			}
-		});
-
-	  };
+		}		  
 
 	  function dataChatProcessing(err, msg)
 	  {
-	    console.log('SEND: ' + msg.body);
-		 
 		var json = jQuery.parseJSON(msg.body);
 
 			if (json.type == 'send')
 			{
 				for(var i = 0; i < json.clients.length; i++)
 				{
-					//cntOnline++;
+					//console.log('host:port ' + json.clients[i].host + ':' + json.clients[i].port + ' time=' + json.clients[i].logontime);
 					
-					//console.log('web.host: ' + host + ' web.port: ' + port 
-					//		+ ' get.host: ' + json.clients[i].host + ' get.port: ' + json.clients[i].port);
-					
-					console.log('host:port ' + json.clients[i].host + ':' + json.clients[i].port + ' time=' + json.clients[i].logontime);
-					
-					if (json.clients[i].host == host && json.clients[i].port == port)
+					if (json.clients[i].host == json.client.host && json.clients[i].port == json.client.port)
 						continue;
 					
 					var logonTime = new Date(json.clients[i].logontime);
@@ -191,7 +179,6 @@
 					var duration = '<span id="runner' + json.clients[i].id + '"></span>';
 	
 					var $newClient = $('<tr id="clientId' + json.clients[i].id + '"><td>' + json.clients[i].host
-					//var $newClient = $('<tr><td>' + json.clients[i].host
 						+ '</td><td>' + json.clients[i].port
 						+ '</td><td>' + logonTimeFormat
 						+ '</td><td>' + duration + ' сек'
@@ -210,12 +197,15 @@
 			}
 	  }
 
+	  function privateChatProcessing(err, msg)
+	  {
+		console.log("PRIVATE CHAT, MSG=" + msg.body);
+	  }
 
 	  function privateTweetFun(num)
 	  {
 		alert('Num: ' + num);
 	  }
-
 
 	  $(document).ready(function()
 	  {
