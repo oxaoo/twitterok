@@ -11,6 +11,8 @@ public class CClient
     private static Map<Integer, CClient> clients = new ConcurrentHashMap<Integer, CClient>();
     private static Map<String, Integer> addrMap = new ConcurrentHashMap<String, Integer>();
 
+    public final transient CPrivateChat privateChat;
+
     private final int id;
     private final String host;
     private final int port;
@@ -23,6 +25,7 @@ public class CClient
         online.incrementAndGet();
         id = count.get();
         uuid = UUID.randomUUID();
+        privateChat = new CPrivateChat(id);
 
         this.host = host;
         this.port = port;
@@ -116,5 +119,28 @@ public class CClient
     public UUID getUuid()
     {
         return uuid;
+    }
+
+    public int getId()
+    {
+        return id;
+    }
+
+    public static CClient getClient(int id)
+    {
+        if (clients.containsKey(id))
+            return clients.get(id);
+        else
+            return null;
+    }
+
+    public String getHost()
+    {
+        return host;
+    }
+
+    public int getPort()
+    {
+        return port;
     }
 }

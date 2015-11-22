@@ -121,17 +121,21 @@ public class CServer extends AbstractVerticle
 
     protected void handle()
     {
-        String uuidRegex = "#([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#){3}";
-        //назначение адресов для моста шины событий.
+        String uuidRegex = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
         BridgeOptions opts = new BridgeOptions()
                 .addInboundPermitted(new PermittedOptions().setAddress("chat.to.server"))
                 .addOutboundPermitted(new PermittedOptions().setAddress("chat.to.client"))
                 .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"))
                 .addInboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex))
-                .addOutboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex));
+                .addOutboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex))
+                .addInboundPermitted(new PermittedOptions().setAddress("com.to.server"));
 
         mHandler.bridge(opts, event -> {
-            if (event.type() == PUBLISH || event.type() == SEND) publishEvent(event);
+            if (event.type() == PUBLISH)
+                publishEvent(event);
+
+            if (event.type() == SEND)
+                sendEvent(event);
 
             if (event.type() == REGISTER)
                 registerEvent(event);
@@ -142,6 +146,57 @@ public class CServer extends AbstractVerticle
 
             event.complete(true);
         });
+    }
+
+    private boolean sendEvent(BridgeEvent event)
+    {
+        if (event.rawMessage().getString("address").equals("com.to.server"))
+        {
+            String json = event.rawMessage().getString("body");
+            CComInfo info = new Gson().fromJson(json, CComInfo.class);
+            if (info.fromId == 0 || info.toId == 0)
+                return false;
+
+            String host = event.socket().remoteAddress().host();
+            int port = event.socket().remoteAddress().port();
+
+            CClient fromClient = CClient.getClient(info.fromId);
+
+            if (fromClient == null)
+                return false;
+
+            if (fromClient.getHost() == host && fromClient.getPort() == port)
+            {
+                boolean isCreate = fromClient.privateChat.createNewChat(info.fromId, info.toId);
+                if (!isCreate)
+                {
+                    log.info("Failed create new private chat");
+                    return false;
+                }
+
+                //fromClient.privateChat.getCreatedChatInfo(info.toId);
+                CChatInfo createdChat = fromClient.privateChat.getCreatedChatInfo(info.toId);
+                CChatInfo invatedChat = CClient.getClient(info.toId).privateChat.getInvatedChatInfo(info.fromId);
+
+
+                if (createdChat == null || invatedChat == null)
+                {
+                    log.info("Created Chat or Invated Chat is NULL");
+                    return false;
+                }
+
+                log.info("JSON Create Chat: " + new Gson().toJson(createdChat));
+                log.info("JSON Invate Chat: " + new Gson().toJson(invatedChat));
+
+                vertx.eventBus().send(createdChat.address, new Gson().toJson(invatedChat));
+
+                vertx.eventBus().send(fromClient.getUuid().toString(), new Gson().toJson(createdChat));
+            }
+            else return false;
+
+        }
+
+        return false;
     }
 
 
@@ -191,7 +246,7 @@ public class CServer extends AbstractVerticle
                     CClient client = new CClient(host, port, time);
                     parms.put("type", "register");
                     parms.put("client", client);
-                    parms.put("uuid", client.getUuid());
+                    parms.put("uuid", client.getUuid().toString());
                     parms.put("online", CClient.getOnline());
 
                     log.info("JSON PARMS: " + new Gson().toJson(parms));
@@ -238,7 +293,7 @@ public class CServer extends AbstractVerticle
 
     protected boolean verifyMessage(String msg)
     {
-        if (msg.length() < 1 || msg.length() >= 140)
+        if (msg.length() < 1 || msg.length() > 140)
             return false;
         else
             return true;
