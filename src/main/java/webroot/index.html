@@ -203,46 +203,76 @@
 		
 		var json = jQuery.parseJSON(msg.body);
 		
-		var address = json.address;
-		var toIdHost = json.toIdHost;
-		var toIdPort = json.toIdPort;
-		var toId = json.toId;
-		var fromId = json.fromId;
-		var isCreator = json.creator;
-		
-		
-		if (isCreator)
+		if (json.type == 'SUCCESS_CREATE' || json.type == 'ALREADY_INVITE')
 		{
-			$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat' + toId + '">'
-				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
-
-			$('<div class="tab-pane fade" id="privateChat' + toId + '">'
-				+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
-				
-			$('#tabs a:last').tab('show');
+			var address = json.info.address;
+			var toIdHost = json.info.toIdHost;
+			var toIdPort = json.info.toIdPort;
+			var toId = json.info.toId;
+			var fromId = json.info.fromId;
+			var isCreator = json.info.creator;
 			
-			//var atab = $("ul#tabs li.active").text();
-			//console.log('Active tab: ' + atab);
-			
-			/*
-			var allTabs = $("ul#tabs li").text();
-			var len = allTabs.length;
-			console.log('All tabs: ' + allTabs);
-			console.log('Length: ' + len);*/
-			
-			/*
-			var lis = $('#tabs li').map(function(i,n) 
+			if (isCreator)
 			{
-				return $(n).attr('id');
-			}).get();//.join(',');
-			
-			console.log('LIs count: ' + lis.length);
-			
-			var arrLis = lis.split(",");
-			
-			console.log('LIs: ' + lis);
-			console.log('ArrLis length: ' + arrLis.length);*/
+				var isExist = isExistTab(toId);
+				if (isExist)
+					$('#tabs a[href="#privateChat' + toId + '"]').tab('show');
+				else
+				{
+					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat' + toId + '">'
+						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
+
+					$('<div class="tab-pane fade" id="privateChat' + toId + '">'
+						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
+						
+					$('#tabs a:last').tab('show');
+				}
+				
+				//var atab = $("ul#tabs li.active").text();
+				//console.log('Active tab: ' + atab);
+				
+				/*
+				var allTabs = $("ul#tabs li").text();
+				var len = allTabs.length;
+				console.log('All tabs: ' + allTabs);
+				console.log('Length: ' + len);*/
+				
+				/*
+				var lis = $('#tabs li').map(function(i,n) 
+				{
+					return $(n).attr('id');
+				}).get();//.join(',');
+				
+				console.log('LIs count: ' + lis.length);
+				
+				var arrLis = lis.split(",");
+				
+				console.log('LIs: ' + lis);
+				console.log('ArrLis length: ' + arrLis.length);*/
+			}
 		}
+		
+		if (json.type == 'LIMIT_CREATED')
+		{
+			var msg = 'Вы можете быть инициатором не более 7 приватных чатов';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}
+		
+		if (json.type == 'ALREADY_CREATED')
+		{
+			var msg = 'Приватный чат с этим пользователей уже был создан';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}
+		
+		if (json.type == 'UNSECCESS')
+		{
+			var msg = 'Не удалось создать приватный чат';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}
+		
 	  }
 	  
 	  function isExistTab(tabId)

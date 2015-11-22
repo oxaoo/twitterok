@@ -7,7 +7,7 @@ public class CChatInfo
 
     public final String toIdHost;
     public final int toIdPort;
-    public final boolean creator;
+    public final boolean creator; //TODO: remove creator.
 
     public CChatInfo(int fromId, int toId, String address, String toIdHost, int toIdPort, boolean creator)
     {

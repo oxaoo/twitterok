@@ -150,6 +150,7 @@ public class CServer extends AbstractVerticle
         if (event.rawMessage().getString("address").equals("com.to.server"))
         {
             String json = event.rawMessage().getString("body");
+
             CComInfo info = new Gson().fromJson(json, CComInfo.class);
             if (info.fromId == 0 || info.toId == 0)
                 return false;
@@ -162,32 +163,65 @@ public class CServer extends AbstractVerticle
             if (fromClient == null)
                 return false;
 
-            if (fromClient.getHost() == host && fromClient.getPort() == port)
+            if (fromClient.getHost().equals(host) && fromClient.getPort() == port)
             {
-                boolean isCreate = fromClient.privateChat.createNewChat(info.fromId, info.toId);
+                CPrivateChat.statusChat status = fromClient.privateChat.addNewChat(info.fromId, info.toId);
+
+                CChatInfo createdChat = fromClient.privateChat.getCreatedChatInfo(info.toId);
+                CClient toClient = CClient.getClient(info.toId);
+                CChatInfo invitedChat = null;
+                if (toClient != null)
+                    invitedChat = toClient.privateChat.getInvitedChatInfo(info.fromId);
+
+                /*
+                if (createdChat == null || invitedChat == null)
+                {
+                    log.info("Created Chat or Invated Chat is NULL");
+                    return false;
+                }*/
+
+                Map<String, Object> responseCreate = new HashMap<String, Object>();
+                Map<String, Object> responseInvite = new HashMap<String, Object>();
+                responseCreate.put("type", status);
+
+                switch (status)
+                {
+                    case LIMIT_CREATED:
+                        //responseCreate.put("info", "¬ы можете быть инициатором не более 7 приватных чатов.");
+                        break;
+                    case ALREADY_CREATED:
+                        //responseCreate.put("info", "ѕриватный чат с этим пользователей уже был создан.");
+                        break;
+                    case ALREADY_INVITE:
+                        responseCreate.put("info", createdChat);
+                        break;
+                    case SUCCESS_CREATE:
+                        responseCreate.put("info", createdChat);
+                        responseInvite.put("type", CPrivateChat.statusChat.SUCCESS_INVITE);
+                        responseInvite.put("info", invitedChat);
+                        break;
+                    case UNSECCESS:
+                        //responseCreate.put("info", "Ќе удалось создать приватный чат.");
+                        break;
+                    default:
+                        log.warn("Something went wrong...");
+                }
+
+                /*
                 if (!isCreate)
                 {
                     log.info("Failed create new private chat");
                     return false;
-                }
+                }*/
 
-                //fromClient.privateChat.getCreatedChatInfo(info.toId);
-                CChatInfo createdChat = fromClient.privateChat.getCreatedChatInfo(info.toId);
-                CChatInfo invatedChat = CClient.getClient(info.toId).privateChat.getInvatedChatInfo(info.fromId);
+                //log.info("JSON Create Chat: " + new Gson().toJson(createdChat));
+                //log.info("JSON Invate Chat: " + new Gson().toJson(invatedChat));
 
+                log.info("JSON RESPONSE CREATE: " + new Gson().toJson(responseCreate).toString());
+                if (status == CPrivateChat.statusChat.SUCCESS_CREATE)
+                    vertx.eventBus().send(createdChat.address, new Gson().toJson(responseInvite));
 
-                if (createdChat == null || invatedChat == null)
-                {
-                    log.info("Created Chat or Invated Chat is NULL");
-                    return false;
-                }
-
-                log.info("JSON Create Chat: " + new Gson().toJson(createdChat));
-                log.info("JSON Invate Chat: " + new Gson().toJson(invatedChat));
-
-                vertx.eventBus().send(createdChat.address, new Gson().toJson(invatedChat));
-
-                vertx.eventBus().send(fromClient.getUuid().toString(), new Gson().toJson(createdChat));
+                vertx.eventBus().send(fromClient.getUuid().toString(), new Gson().toJson(responseCreate));
             }
             else return false;
 
