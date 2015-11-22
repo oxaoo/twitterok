@@ -200,18 +200,88 @@
 	  function privateChatProcessing(err, msg)
 	  {
 		console.log('PRIVATE CHAT, MSG=' + msg.body);
+		
+		var json = jQuery.parseJSON(msg.body);
+		
+		var address = json.address;
+		var toIdHost = json.toIdHost;
+		var toIdPort = json.toIdPort;
+		var toId = json.toId;
+		var fromId = json.fromId;
+		var isCreator = json.creator;
+		
+		
+		if (isCreator)
+		{
+			$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat' + toId + '">'
+				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
+
+			$('<div class="tab-pane fade" id="privateChat' + toId + '">'
+				+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
+				
+			$('#tabs a:last').tab('show');
+			
+			//var atab = $("ul#tabs li.active").text();
+			//console.log('Active tab: ' + atab);
+			
+			/*
+			var allTabs = $("ul#tabs li").text();
+			var len = allTabs.length;
+			console.log('All tabs: ' + allTabs);
+			console.log('Length: ' + len);*/
+			
+			/*
+			var lis = $('#tabs li').map(function(i,n) 
+			{
+				return $(n).attr('id');
+			}).get();//.join(',');
+			
+			console.log('LIs count: ' + lis.length);
+			
+			var arrLis = lis.split(",");
+			
+			console.log('LIs: ' + lis);
+			console.log('ArrLis length: ' + arrLis.length);*/
+		}
+	  }
+	  
+	  function isExistTab(tabId)
+	  {
+		var lis = $('#tabs li').map(function(i,n) 
+			{
+				return $(n).attr('id');
+			}).get();
+			
+		for (var i = 0; i < lis.length; i++)
+		{
+			if ('tabPrivateChat' + tabId == lis[i])
+				return true;
+		}
+		
+		return false;
 	  }
 
 	  function privateTweetFun(toId)
 	  {
-		console.log('ID:' + toId);
+		//console.log('ID:' + toId);
 		
-		var info = new Object();
-	    info.fromId = id;
-	    info.toId  = toId;
-	    var jInfo= JSON.stringify(info);
+		var isExist = isExistTab(toId);
+		//console.log('isExist: ' + isExist);
 		
-		eb.send("com.to.server", jInfo);
+		if (isExist)
+		{
+			//console.log('Show tab: ' + '#tabs a[href="#tabPrivateChat' + toId + '"]');
+			$('#tabs a[href="#privateChat' + toId + '"]').tab('show');
+		}
+		else
+		{
+			var info = new Object();
+			info.fromId = id;
+			info.toId  = toId;
+			var jInfo= JSON.stringify(info);
+			
+			eb.send("com.to.server", jInfo);
+		}
 	  }
 
 	  $(document).ready(function()
@@ -228,8 +298,8 @@
 				countChar();
 			}
 		});
-		});
-	  
+	  });
+	  	  
 	  function countChar() 
 	  {
 		var len = $('#message').val().length;
@@ -299,20 +369,17 @@
 		<!--div class="panel panel-success"-->
 		<div class="container panel-success">
 		  <!--div class="panel-heading"><h3>Новые твиты</h3></div-->
-			<ul class="nav nav-tabs">
-				<li class="active"><a data-toggle="tab" href="#newt">
+			<ul class="nav nav-tabs" id="tabs">
+				<li class="active" id="tabNewTweets"><a data-toggle="tab" href="#newTweets">
 					<span class="glyphicon glyphicon-fire"></span>
 					 Новые твиты</a></li>
-				<li><a data-toggle="tab" href="#paneTableOnline">
+				<li id="tabPaneTableOnline"><a data-toggle="tab" href="#paneTableOnline">
 					<span class="glyphicon glyphicon-user"></span>
 					 Онлайн</a></li>
-				<li><a data-toggle="tab" href="#chatt">
-					<span class="glyphicon glyphicon-sunglasses"></span>
-					 Приватный чат</a></li>
 			</ul>
 
 			<div class="tab-content">
-				<div id="newt" class="tab-pane fade in active">
+				<div id="newTweets" class="tab-pane fade in active">
 					<h3>Новые твиты</h3>
 					<table id="tweets" class="table table-hover" width="100%">
 						<colgroup>
@@ -334,11 +401,6 @@
 							<th> </th>
 						</tr>
 					</table>
-				</div>
-
-				<div id="chatt" class="tab-pane fade">
-					<h3>Приватный чат</h3>
-					<p>Приватный чат один на один.</p>
 				</div>
 			</div>
 		</div>

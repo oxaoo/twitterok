@@ -15,10 +15,7 @@ import java.net.BindException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static io.vertx.ext.web.handler.sockjs.BridgeEvent.Type.*;
 
@@ -242,15 +239,15 @@ public class CServer extends AbstractVerticle
                     int port = event.socket().remoteAddress().port();
                     Date time = Calendar.getInstance().getTime();
 
-                    Map<String, Object> parms = new HashMap<String, Object>(3);
                     CClient client = new CClient(host, port, time);
+                    Map<String, Object> parms = new HashMap<String, Object>(3);
+
                     parms.put("type", "register");
                     parms.put("client", client);
                     parms.put("uuid", client.getUuid().toString());
                     parms.put("online", CClient.getOnline());
 
                     log.info("JSON PARMS: " + new Gson().toJson(parms));
-
                     vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
 
 
@@ -260,7 +257,6 @@ public class CServer extends AbstractVerticle
                     parms2.put("clients", CClient.getOnlineList());
 
                     log.info("JSON PARMS2: " + new Gson().toJson(parms2));
-
                     vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
                 }
             }).start();
@@ -277,9 +273,12 @@ public class CServer extends AbstractVerticle
                     String host = event.socket().remoteAddress().host();
                     int port = event.socket().remoteAddress().port();
 
+                    CClient client = CClient.unregisterClient(host, port);
+                    if (client == null)
+                        return;
+
                     Map<String, Object> parms = new HashMap<String, Object>(3);
 
-                    CClient client = CClient.unregisterClient(host, port);
                     parms.put("type", "unregister");
                     parms.put("online", CClient.getOnline());
                     parms.put("client", client);

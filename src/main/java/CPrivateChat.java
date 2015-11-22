@@ -61,8 +61,11 @@ public class CPrivateChat
             return false;
         }
 
-        createdChat.put(toId, new CChatInfo(fromId, toId, toClient.getUuid().toString()));
-        toIdPrivateChat.invatedChat.put(fromId, new CChatInfo(toId, fromId, fromClient.getUuid().toString()));
+        createdChat.put(toId, new CChatInfo(fromId, toId,
+                toClient.getUuid().toString(), toClient.getHost(), toClient.getPort(), true));
+
+        toIdPrivateChat.invatedChat.put(fromId, new CChatInfo(toId, fromId,
+                fromClient.getUuid().toString(), fromClient.getHost(), fromClient.getPort(), false));
 
         return true;
     }

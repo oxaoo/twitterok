@@ -44,6 +44,7 @@ public class CClient
         {
             int id = addrMap.get(addr);
             CClient unregClient = clients.remove(id);
+            addrMap.remove(addr);
             online.decrementAndGet();
             return unregClient;
         }
