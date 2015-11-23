@@ -173,12 +173,6 @@ public class CServer extends AbstractVerticle
                 if (toClient != null)
                     invitedChat = toClient.privateChat.getInvitedChatInfo(info.fromId);
 
-                /*
-                if (createdChat == null || invitedChat == null)
-                {
-                    log.info("Created Chat or Invated Chat is NULL");
-                    return false;
-                }*/
 
                 Map<String, Object> responseCreate = new HashMap<String, Object>();
                 Map<String, Object> responseInvite = new HashMap<String, Object>();
@@ -187,10 +181,8 @@ public class CServer extends AbstractVerticle
                 switch (status)
                 {
                     case LIMIT_CREATED:
-                        //responseCreate.put("info", "¬ы можете быть инициатором не более 7 приватных чатов.");
                         break;
                     case ALREADY_CREATED:
-                        //responseCreate.put("info", "ѕриватный чат с этим пользователей уже был создан.");
                         break;
                     case ALREADY_INVITE:
                         responseCreate.put("info", createdChat);
@@ -201,21 +193,10 @@ public class CServer extends AbstractVerticle
                         responseInvite.put("info", invitedChat);
                         break;
                     case UNSECCESS:
-                        //responseCreate.put("info", "Ќе удалось создать приватный чат.");
                         break;
                     default:
                         log.warn("Something went wrong...");
                 }
-
-                /*
-                if (!isCreate)
-                {
-                    log.info("Failed create new private chat");
-                    return false;
-                }*/
-
-                //log.info("JSON Create Chat: " + new Gson().toJson(createdChat));
-                //log.info("JSON Invate Chat: " + new Gson().toJson(invatedChat));
 
                 log.info("JSON RESPONSE CREATE: " + new Gson().toJson(responseCreate).toString());
                 if (status == CPrivateChat.statusChat.SUCCESS_CREATE)

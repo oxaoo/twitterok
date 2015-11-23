@@ -29,6 +29,16 @@
 			width: 160px;
 			font-size: 10px;
         }
+		
+		.color-danger 
+		{
+			color: #d9534f;
+		}
+		
+		.color-default 
+		{
+			color: #555;
+		}
 
 		.tab-content
 		{
@@ -63,6 +73,8 @@
 	  var host = null, port = null, id = null; //, uuid = null;
 	  var isNewSession = true;
 	  var isFirstMessage = true;
+	  var online = 0;
+	  var chats = new Map();
 	  
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
@@ -106,7 +118,8 @@
 
 			if (json.type == 'register')
 			{
-				$('#online').text(json.online);
+				online = json.online;
+				$('#online').text(online);
 
 				var logonTime = new Date(json.client.logontime);
 				var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
@@ -147,7 +160,8 @@
 
 			if (json.type == 'unregister')
 			{
-				$('#online').text(json.online);
+				online = json.online;
+				$('#online').text(online);
 				if (json.client != null)
 				    $('#clientId' + json.client.id).remove();
 			}
@@ -212,43 +226,25 @@
 			var fromId = json.info.fromId;
 			var isCreator = json.info.creator;
 			
+			chats.set(toId, address);
+			//chats.delete(toId); //удаление из map'ы.
+			
 			if (isCreator)
 			{
 				var isExist = isExistTab(toId);
 				if (isExist)
-					$('#tabs a[href="#privateChat' + toId + '"]').tab('show');
+					$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
 				else
 				{
-					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat' + toId + '">'
+					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
 						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
 
-					$('<div class="tab-pane fade" id="privateChat' + toId + '">'
+					$('<div class="tab-pane fade" id="privateChat_' + toId + '">'
 						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
 						
 					$('#tabs a:last').tab('show');
 				}
 				
-				//var atab = $("ul#tabs li.active").text();
-				//console.log('Active tab: ' + atab);
-				
-				/*
-				var allTabs = $("ul#tabs li").text();
-				var len = allTabs.length;
-				console.log('All tabs: ' + allTabs);
-				console.log('Length: ' + len);*/
-				
-				/*
-				var lis = $('#tabs li').map(function(i,n) 
-				{
-					return $(n).attr('id');
-				}).get();//.join(',');
-				
-				console.log('LIs count: ' + lis.length);
-				
-				var arrLis = lis.split(",");
-				
-				console.log('LIs: ' + lis);
-				console.log('ArrLis length: ' + arrLis.length);*/
 			}
 		}
 		
@@ -284,7 +280,7 @@
 			
 		for (var i = 0; i < lis.length; i++)
 		{
-			if ('tabPrivateChat' + tabId == lis[i])
+			if ('tabPrivateChat-' + tabId == lis[i])
 				return true;
 		}
 		
@@ -301,7 +297,7 @@
 		if (isExist)
 		{
 			//console.log('Show tab: ' + '#tabs a[href="#tabPrivateChat' + toId + '"]');
-			$('#tabs a[href="#privateChat' + toId + '"]').tab('show');
+			$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
 		}
 		else
 		{
@@ -316,6 +312,7 @@
 
 	  $(document).ready(function()
 	  {
+		//отправление твита.
 		$('#twit').submit(function(evt)
 		{
 			evt.preventDefault();
@@ -323,12 +320,52 @@
 			
 			if (message.length > 0)
 			{
+				var activeTab = $('.nav-tabs .active > a').attr('href').substring(1);
+				console.log('Active nav-tab: ' + activeTab);
+				if (activeTab != 'newTweets' && activeTab != 'paneTableOnline')
+				{
+					var toId = String(activeTab).split('_')[1];
+					if (chats.has(toId))
+					{
+						var addr = chats.get(toId);
+						
+						var obj = new Object();
+						obj.type = 'MESSAGE';
+						obj.info.fromId = id;
+						obj.info.toId  = toId;
+						var jInfo= JSON.stringify(info);
+						
+						eb.publish(addr, message);
+					}
+					else
+						console.log('Chat id #' + toId + ' has not.');
+				}
+			
 				eb.publish("chat.to.server", message);
 				$('#message').val("").focus();
 				countChar();
 			}
 		});
+
+		/*
+		$(".nav-tabs a").click(function()
+		{
+			$(this).tab('show');
+			console.log('Changed tab');
+		});*/
+		//переключение вкладок.
+		$(document).on( 'shown.bs.tab', 'a[data-toggle="tab"]', function (e) 
+		{
+			var tab = String(e.target).split('#')[1];
+			console.log('TAB: ' + tab);
+			
+			if (tab != 'newTweets' && tab != 'paneTableOnline')
+			{
+				//TODO: поменять цвет.
+			}
+		});
 	  });
+	  
 	  	  
 	  function countChar() 
 	  {
@@ -365,7 +402,7 @@
         <h2 align="center" class="alert alert-success">TWITTEROK</h2>
         <fieldset>
 			<div class="input-group input-group-lg">
-			  <span class="input-group-addon">
+			  <span class="input-group-addon" id="onlineEye">
 				<span class="glyphicon glyphicon-eye-open"></span>
 			  </span>
 				<span class="input-group-addon" id="online">
