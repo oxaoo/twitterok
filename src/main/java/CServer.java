@@ -162,32 +162,32 @@ public class CServer extends AbstractVerticle
             String uuidClient = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
             String json = event.rawMessage().getString("body");
             //log.info("JSON: " + json);
-            CComInfo info = new Gson().fromJson(json, CComInfo.class);
+            CChat info = new Gson().fromJson(json, CChat.class);
 
-            if (info.fromId == 0 || info.toId == 0)
+            if (info.getFromId() == 0 || info.getToId() == 0)
             {
-                log.info("FromId=" + info.fromId + ", ToId=" + info.toId);
+                log.info("FromId=" + info.getFromId() + ", ToId=" + info.getToId());
                 return false;
             }
 
             //исключить возможность хака.
             String ip = event.socket().remoteAddress().host();
             int port = event.socket().remoteAddress().port();
-            //if (!CClient.getClient(info.fromId).getUuid().toString().equals(uuidClient))
-            if (CClient.getClient(ip, port).getId() != info.fromId)
+            //if (!CClient.getClient(info.getFromId()).getUuid().toString().equals(uuidClient))
+            if (CClient.getClient(ip, port).getId() != info.getFromId())
             {
                 log.info("Hacking");
                 return false;
             }
 
-            CChat thinChat = new CChat(info.fromId, info.toId);
-            //CClient fromClient = CClient.getClient(info.fromId);
+            CChat thinChat = new CChat(info.getFromId(), info.getToId());
+            //CClient fromClient = CClient.getClient(info.getFromId());
             int index = CClient.indexPrivateChat(thinChat);
             if (index == -1) CClient.addPrivateChat(thinChat);
             else thinChat = CClient.getPrivateChat(index); //unique uuid.
 
 
-            CClient toClient = CClient.getClient(info.toId);
+            CClient toClient = CClient.getClient(info.getToId());
 
             Map<String, Object> response = new TreeMap<String, Object>();
             response.put("thrown", true);
@@ -208,7 +208,7 @@ public class CServer extends AbstractVerticle
             //TODO: мб добавить проверку uuid, от хака.
             String uuidAddress = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
             String message = event.rawMessage().getString("body");
-            log.info("Get Message: " + message);
+            //log.info("Get Message: " + message);
             if (!verifyMessage(message))
                 return false;
 
