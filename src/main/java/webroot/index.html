@@ -70,9 +70,10 @@
 
     <script>
 		
-	  var host = null, port = null, id = null; //, uuid = null;
+	  var host = null, port = null, id = null, uuid = null;
 	  var isNewSession = true;
 	  var isFirstMessage = true;
+	  var isFirstMessagePrivateChat = new Map();
 	  var online = 0;
 	  var chats = new Map();
 	  
@@ -85,7 +86,7 @@
 	  
 	  function eventChatProcessing(err, msg)
 	  {
-			console.log('MSG BODY: ' + msg.body);
+			//console.log('MSG BODY: ' + msg.body);
 			
 			var json = jQuery.parseJSON(msg.body);
 
@@ -119,7 +120,10 @@
 			if (json.type == 'register')
 			{
 				online = json.online;
-				$('#online').text(online);
+				
+				var isPrivateTab = isActivePrivatChatTab();
+				if (!isPrivateTab)
+					$('#online').text(online);
 
 				var logonTime = new Date(json.client.logontime);
 				var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
@@ -139,9 +143,10 @@
                     port = json.client.port;
                     title = ' title="Вы"';
 					id = json.client.id;
-					
-					console.log('Register handler: ' + json.uuid);
-					eb.registerHandler(json.uuid, privateChatProcessing);
+					uuid = json.uuid;
+					console.log('Register handler: ' + uuid);
+					eb.registerHandler('com.chat.' + uuid, comChatProcessing);
+					//eb.registerHandler('com.chat.' + json.uuid, privateChatProcessing);
                 }
 
 				var duration = '<span id="runner' + json.client.id + '"></span>';
@@ -161,12 +166,102 @@
 			if (json.type == 'unregister')
 			{
 				online = json.online;
-				$('#online').text(online);
+				
+				var isPrivateTab = isActivePrivatChatTab();
+				if (!isPrivateTab)
+					$('#online').text(online);
+				
 				if (json.client != null)
 				    $('#clientId' + json.client.id).remove();
 			}
 		}		  
 
+	function comChatProcessing(err, msg)
+	  {
+		//Обработка информации о новых соединениях.
+		console.log('Communication chat get message: ' + msg.body);
+		var response = jQuery.parseJSON(msg.body);
+		
+		var thrown = response.thrown;
+		var chatToId = String(response.chat.toId);
+		var chatFromId = String(response.chat.fromId);
+		var chatId = null;
+		var chatAddr = String(response.chat.address);
+		//var address = 'private.server.' + chatAddr;
+		//console.log('Private chat address: ' + chatAddr);
+		
+		eb.registerHandler('private.chat.' + chatAddr, privateChatProcessing);
+		
+		//console.log("Put to chats: chatToId: " + chatToId + ", address: " + chatAddr);
+		
+		if (chatToId == id)
+			chatId = chatFromId;
+		else
+			chatId = chatToId;
+			
+		chats.set(chatId, 'private.server.' + chatAddr);
+		isFirstMessagePrivateChat.set(chatId, true);
+		//console.log("Is put to CHATS");
+		
+		/*
+		console.log('PRIVATE CHAT, MSG=' + msg.body);
+		
+		var json = jQuery.parseJSON(msg.body);
+		
+		if (json.type == 'SUCCESS_CREATE' || json.type == 'ALREADY_INVITE')
+		{
+			var address = json.info.address;
+			var toIdHost = json.info.toIdHost;
+			var toIdPort = json.info.toIdPort;
+			var toId = json.info.toId;
+			var fromId = json.info.fromId;
+			var isCreator = json.info.creator;
+			
+			chats.set(toId, address);
+			//chats.delete(toId); //удаление из map'ы.
+			
+			if (isCreator)
+			{
+				var isExist = isExistTab(toId);
+				if (isExist)
+					$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
+				else
+				{
+					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat-' + toId + '">'
+						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
+
+					$('<div class="tab-pane fade" id="privateChat-' + toId + '">'
+						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
+						
+					$('#tabs a:last').tab('show');
+				}
+				
+			}
+		}
+		
+		if (json.type == 'LIMIT_CREATED')
+		{
+			var msg = 'Вы можете быть инициатором не более 7 приватных чатов';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}
+		
+		if (json.type == 'ALREADY_CREATED')
+		{
+			var msg = 'Приватный чат с этим пользователей уже был создан';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}
+		
+		if (json.type == 'UNSECCESS')
+		{
+			var msg = 'Не удалось создать приватный чат';
+			console.log('Info create private chat: ' + msg);
+			alert(msg);
+		}*/
+		
+	  }
+		
 	  function dataChatProcessing(err, msg)
 	  {
 		var json = jQuery.parseJSON(msg.body);
@@ -217,6 +312,53 @@
 		
 		var json = jQuery.parseJSON(msg.body);
 		
+		var t = Date.parse(json.time);
+		var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
+		var toId = String(json.toId);
+		var fromId = String(json.fromId);
+		var inId = null;
+		
+		if (toId == id)
+			inId = fromId;
+		else
+			inId = toId;
+		
+		
+		var isExist = isExistTab(inId);
+		if (!isExist)
+		{
+			createTab(inId, false);
+		}
+
+		var bgcolor = ' bgcolor="#ffffff"';
+
+		if (host != null && port != null
+		    && host == json.host && port == json.port)
+		{
+		    bgcolor = ' bgcolor="#dff0d8"';
+		}
+
+		var $messageLine = $('<tr' + bgcolor + '><td align="left">' + tf
+			+ '</td><td align="left">' + json.host
+			+ '</td><td>' + json.message
+			+ '</td></tr>');
+
+		if (isFirstMessagePrivateChat.get(inId))
+		{
+			console.log("IS FIRST");
+			$('#privateTweets_' + inId).append($messageLine);
+			isFirstMessagePrivateChat.set(inId, false);
+		}
+		else
+		{
+			console.log("IS NOT FIRST");
+			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);
+		}
+			
+			
+		/*
+		var json = jQuery.parseJSON(msg.body);
+		
 		if (json.type == 'SUCCESS_CREATE' || json.type == 'ALREADY_INVITE')
 		{
 			var address = json.info.address;
@@ -233,13 +375,13 @@
 			{
 				var isExist = isExistTab(toId);
 				if (isExist)
-					$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
+					$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
 				else
 				{
-					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
+					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat-' + toId + '">'
 						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
 
-					$('<div class="tab-pane fade" id="privateChat_' + toId + '">'
+					$('<div class="tab-pane fade" id="privateChat-' + toId + '">'
 						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
 						
 					$('#tabs a:last').tab('show');
@@ -267,7 +409,7 @@
 			var msg = 'Не удалось создать приватный чат';
 			console.log('Info create private chat: ' + msg);
 			alert(msg);
-		}
+		}*/
 		
 	  }
 	  
@@ -280,7 +422,7 @@
 			
 		for (var i = 0; i < lis.length; i++)
 		{
-			if ('tabPrivateChat-' + tabId == lis[i])
+			if ('tabPrivateChat_' + tabId == lis[i])
 				return true;
 		}
 		
@@ -289,11 +431,10 @@
 
 	  function privateTweetFun(toId)
 	  {
-		//console.log('ID:' + toId);
+		console.log('ID:' + toId);
 		
 		var isExist = isExistTab(toId);
-		//console.log('isExist: ' + isExist);
-		
+		console.log('isExist: ' + isExist);
 		if (isExist)
 		{
 			//console.log('Show tab: ' + '#tabs a[href="#tabPrivateChat' + toId + '"]');
@@ -306,9 +447,65 @@
 			info.toId  = toId;
 			var jInfo= JSON.stringify(info);
 			
-			eb.send("com.to.server", jInfo);
+			//eb.send("com.to.server", jInfo);
+			if (uuid != null)
+			{
+				eb.send("com.server." + uuid, jInfo);
+				createTab(toId, true);
+			}
+			else
+				console.log('UUID is NULL');
 		}
 	  }
+	  
+	  function createTab(toId, show)
+	  {
+		//var isExist = isExistTab(toId);
+		//if (isExist)
+		//	$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
+		//else
+		//{
+			var tr = $('#clientId' + toId);	
+			var tdIP = $(tr).find("td:eq(0)").html();
+			var tdPort = $(tr).find("td:eq(1)").html();
+			
+			//console.log("IP: " + tdIP + ", Port: " + tdPort);
+			
+			$('<li id="tabPrivateChat_' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
+				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + tdIP + ':' + tdPort + ']</a></li>').appendTo('#tabs');
+			
+			var chatTable = '<table id="privateTweets_' + toId + '" class="table table-hover" width="100%">' +
+						'<colgroup>' +
+							'<col style="width:10%">' +
+							'<col style="width:20%">' +
+							'<col style="width:70%">' +
+						'</colgroup>' +
+					'</table>';
+			
+			$('<div class="tab-pane fade" id="privateChat_' + toId + '">'
+				+ '<h3> Приватный чат [' + tdIP + ':' + tdPort + ']</h3>' + chatTable + '</div>').appendTo('.tab-content');
+			
+			if (show)
+				$('#tabs a:last').tab('show');
+			
+		//}
+	  }
+	  
+	  function isActivePrivatChatTab()
+		{
+			var activeTab = getActiveTab();
+			if (activeTab != 'newTweets' && activeTab != 'paneTableOnline')
+				return true;
+			else
+				return false;
+		}
+		
+		function getActiveTab()
+		{
+			var activeTab = $('.nav-tabs .active > a').attr('href').substring(1);
+			console.log('Active nav-tab: ' + activeTab);
+			return activeTab;
+		}
 
 	  $(document).ready(function()
 	  {
@@ -320,33 +517,58 @@
 			
 			if (message.length > 0)
 			{
-				var activeTab = $('.nav-tabs .active > a').attr('href').substring(1);
-				console.log('Active nav-tab: ' + activeTab);
-				if (activeTab != 'newTweets' && activeTab != 'paneTableOnline')
+				var isPrivateTab = isActivePrivatChatTab();
+				
+				if (isPrivateTab)
 				{
+					var activeTab = getActiveTab();
 					var toId = String(activeTab).split('_')[1];
+					
+					/*
+					for (var [key, value] of chats) 
+					{
+					  console.log("Chats pair: " + key + " = " + value);
+					}*/
+					
+					/*
+					chats.forEach(function(value, key) 
+					{
+					  console.log("Chats pair: " + key + " = " + value);
+					  if (key == toId)
+						console.log("Key: " + key + " == toID: " + toId);
+					  else
+						console.log("Key: " + key + " != toID: " + toId);
+					}, chats);*/
+					
+					
 					if (chats.has(toId))
 					{
 						var addr = chats.get(toId);
+						console.log("ADDR: " + addr);
 						
-						var obj = new Object();
-						obj.type = 'MESSAGE';
-						obj.info.fromId = id;
-						obj.info.toId  = toId;
-						var jInfo= JSON.stringify(info);
-						
-						eb.publish(addr, message);
+						eb.send(addr, message);
 					}
 					else
 						console.log('Chat id #' + toId + ' has not.');
 				}
-			
-				eb.publish("chat.to.server", message);
+				else
+				{	
+					var activeTab = getActiveTab();
+					if (activeTab == 'paneTableOnline')
+					{
+						console.log("Open paneTableOnline");
+						$('#tabs a[href="#newTweets"]').tab('show');
+						//$('a[data-toggle="tab"]:first').trigger("shown.bs.tab");
+					}
+					
+					eb.publish("chat.to.server", message);
+				}
+				
 				$('#message').val("").focus();
 				countChar();
 			}
 		});
-
+		
 		/*
 		$(".nav-tabs a").click(function()
 		{
@@ -357,11 +579,20 @@
 		$(document).on( 'shown.bs.tab', 'a[data-toggle="tab"]', function (e) 
 		{
 			var tab = String(e.target).split('#')[1];
-			console.log('TAB: ' + tab);
+			//console.log('TAB: ' + tab);
 			
 			if (tab != 'newTweets' && tab != 'paneTableOnline')
 			{
 				//TODO: поменять цвет.
+				document.getElementById("onlineEye").style.color = "#d9534f";
+				document.getElementById("online").style.color = "#d9534f";
+				$('#online').text(1);
+			}
+			else
+			{
+				document.getElementById("onlineEye").style.color = "#555";
+				document.getElementById("online").style.color = "#555";
+				$('#online').text(online);
 			}
 		});
 	  });

@@ -2,6 +2,7 @@ import com.google.gson.Gson;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CClient
@@ -10,8 +11,9 @@ public class CClient
     private static AtomicInteger online = new AtomicInteger(0);
     private static Map<Integer, CClient> clients = new ConcurrentHashMap<Integer, CClient>();
     private static Map<String, Integer> addrMap = new ConcurrentHashMap<String, Integer>();
+    private static CopyOnWriteArrayList<CChat> privateChats = new CopyOnWriteArrayList<CChat>();
 
-    public final transient CPrivateChat privateChat;
+    //public final transient CPrivateChat privateChat;
 
     private final int id;
     private final String host;
@@ -25,7 +27,7 @@ public class CClient
         online.incrementAndGet();
         id = count.get();
         uuid = UUID.randomUUID();
-        privateChat = new CPrivateChat(id);
+        //privateChat = new CPrivateChat(id);
 
         this.host = host;
         this.port = port;
@@ -33,8 +35,45 @@ public class CClient
 
         String addr = host.concat(":").concat(String.valueOf(port));
         addrMap.put(addr, id);
-
         clients.put(id, this);
+    }
+
+    public static int indexPrivateChat(CChat chat)
+    {
+        //return privateChats.contains(chat);
+        return privateChats.indexOf(chat);
+    }
+
+    public static boolean addPrivateChat(CChat chat)
+    {
+        if (privateChats.contains(chat))
+            return false;
+
+        return privateChats.add(chat);
+    }
+
+    public static CChat getPrivateChat(int index)
+    {
+        return privateChats.get(index);
+    }
+
+    public static CChat getChatByAddress(String address)
+    {
+        for(CChat chat : privateChats)
+        {
+            if (chat.getAddress().equals(address))
+                return chat;
+        }
+
+        return null;
+    }
+
+    private int getIdByAddress(String host, int port)
+    {
+        String addr = host.concat(":").concat(String.valueOf(port));
+        if (addrMap.containsKey(addr))
+            return addrMap.get(addr);
+        else return -1;
     }
 
     public static CClient unregisterClient(String host, int port)
@@ -87,7 +126,6 @@ public class CClient
     }
 
 
-    //public static String toJson()
     public static Collection<CClient> getOnlineList()
     {
         return clients.values();

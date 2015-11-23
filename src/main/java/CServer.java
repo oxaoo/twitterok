@@ -1,4 +1,6 @@
 import com.google.gson.Gson;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Starter;
 import io.vertx.core.logging.Logger;
@@ -122,10 +124,11 @@ public class CServer extends AbstractVerticle
         BridgeOptions opts = new BridgeOptions()
                 .addInboundPermitted(new PermittedOptions().setAddress("chat.to.server"))
                 .addOutboundPermitted(new PermittedOptions().setAddress("chat.to.client"))
-                .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"))
-                .addInboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex))
-                .addOutboundPermitted(new PermittedOptions().setAddressRegex(uuidRegex))
-                .addInboundPermitted(new PermittedOptions().setAddress("com.to.server"));
+                .addInboundPermitted(new PermittedOptions().setAddressRegex("private\\.server\\." + uuidRegex))
+                .addOutboundPermitted(new PermittedOptions().setAddressRegex("private\\.chat\\." + uuidRegex))
+                .addInboundPermitted(new PermittedOptions().setAddressRegex("com\\.server\\." + uuidRegex))
+                .addOutboundPermitted(new PermittedOptions().setAddressRegex("com\\.chat\\." + uuidRegex))
+                .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"));
 
         mHandler.bridge(opts, event -> {
             if (event.type() == PUBLISH)
@@ -147,6 +150,99 @@ public class CServer extends AbstractVerticle
 
     private boolean sendEvent(BridgeEvent event)
     {
+        log.info("Send event called.");
+        String eventAddr = event.rawMessage().getString("address");
+        String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+        log.info("Event address: " + eventAddr);
+
+        //создание чата.
+        if (Pattern.compile("com\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
+        {
+            String uuidClient = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
+            String json = event.rawMessage().getString("body");
+            //log.info("JSON: " + json);
+            CComInfo info = new Gson().fromJson(json, CComInfo.class);
+
+            if (info.fromId == 0 || info.toId == 0)
+            {
+                log.info("FromId=" + info.fromId + ", ToId=" + info.toId);
+                return false;
+            }
+
+            //исключить возможность хака.
+            String ip = event.socket().remoteAddress().host();
+            int port = event.socket().remoteAddress().port();
+            //if (!CClient.getClient(info.fromId).getUuid().toString().equals(uuidClient))
+            if (CClient.getClient(ip, port).getId() != info.fromId)
+            {
+                log.info("Hacking");
+                return false;
+            }
+
+            CChat thinChat = new CChat(info.fromId, info.toId);
+            //CClient fromClient = CClient.getClient(info.fromId);
+            int index = CClient.indexPrivateChat(thinChat);
+            if (index == -1) CClient.addPrivateChat(thinChat);
+            else thinChat = CClient.getPrivateChat(index); //unique uuid.
+
+
+            CClient toClient = CClient.getClient(info.toId);
+
+            Map<String, Object> response = new TreeMap<String, Object>();
+            response.put("thrown", true);
+            response.put("chat", thinChat);
+            vertx.eventBus().send("com.chat." + uuidClient, new Gson().toJson(response));
+            //log.info("Send message to: com.chat." + uuidClient + "; Response: " + new Gson().toJson(response));
+            response.put("thrown", false);
+            vertx.eventBus().send("com.chat." + toClient.getUuid(), new Gson().toJson(response));
+            //log.info("Send message to: com.chat." + toClient.getUuid() + "; Response: " + new Gson().toJson(response));
+
+            return true;
+        }
+
+        //отправление сообщения в приватный чат.
+        //if (eventAddr.startsWith("private\\.server\\." + uuidRegEx))
+        if (Pattern.compile("private\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
+        {
+            //TODO: мб добавить проверку uuid, от хака.
+            String uuidAddress = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
+            String message = event.rawMessage().getString("body");
+            log.info("Get Message: " + message);
+            if (!verifyMessage(message))
+                return false;
+
+            String ip = event.socket().remoteAddress().host();
+            int port = event.socket().remoteAddress().port();
+
+            CClient fromClient = CClient.getClient(ip, port);
+
+            CChat chat = CClient.getChatByAddress(uuidAddress);
+            if (chat == null)
+            {
+                log.info("There is no a chat with the address: " + uuidAddress);
+                return false;
+            }
+
+            String time = Calendar.getInstance().getTime().toString();
+
+            Map<String, Object> parms = new TreeMap<String, Object>();
+            parms.put("type", "send");
+            parms.put("time", time);
+            parms.put("host", ip);
+            parms.put("port", port);
+            parms.put("message", message);
+            parms.put("toId", chat.getToId());
+            parms.put("fromId", chat.getFromId());
+
+            vertx.eventBus().publish("private.chat." + uuidAddress, new Gson().toJson(parms));
+            return true;
+        }
+
+        return false;
+    }
+
+        /*
         if (event.rawMessage().getString("address").equals("com.to.server"))
         {
             String json = event.rawMessage().getString("body");
@@ -208,8 +304,8 @@ public class CServer extends AbstractVerticle
 
         }
 
-        return false;
-    }
+        return false;*/
+
 
 
     protected boolean publishEvent(BridgeEvent event)
@@ -220,13 +316,12 @@ public class CServer extends AbstractVerticle
             if (!verifyMessage(message))
                 return false;
 
-            Gson gson = new Gson();
             String ip = event.socket().remoteAddress().host();
             int port = event.socket().remoteAddress().port();
 
             String time = Calendar.getInstance().getTime().toString();
 
-            Map<String, Object> parms = new HashMap<String, Object>(5);
+            Map<String, Object> parms = new TreeMap<String, Object>();
             parms.put("type", "publish");
             parms.put("time", time);
             parms.put("host", ip);
@@ -235,7 +330,7 @@ public class CServer extends AbstractVerticle
 
             log.debug("Publish, host: " + ip + ", port: " + port);
 
-            vertx.eventBus().publish("chat.to.client", gson.toJson(parms));
+            vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
             return true;
         }
         else
@@ -259,7 +354,7 @@ public class CServer extends AbstractVerticle
 
                     parms.put("type", "register");
                     parms.put("client", client);
-                    parms.put("uuid", client.getUuid().toString());
+                    parms.put("uuid", client.getUuid());
                     parms.put("online", CClient.getOnline());
 
                     log.info("JSON PARMS: " + new Gson().toJson(parms));
@@ -273,6 +368,7 @@ public class CServer extends AbstractVerticle
 
                     log.info("JSON PARMS2: " + new Gson().toJson(parms2));
                     vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
+                    //TODO: заменить data.on.chat на con.chat.UUID.
                 }
             }).start();
     }
