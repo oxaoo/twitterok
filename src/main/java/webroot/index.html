@@ -4,18 +4,15 @@
     <title>Twitterok</title>
     <meta charset="windows-1251">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!--script src="https://code.jquery.com/jquery-1.11.2.min.js"></script-->
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertx-eventbus.js"></script>
 	<script src="date-format.js"></script>
-	<!--script src="stopwatch.js"></script-->
 
 	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 	<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 	<script src="jquery.runner.js" type="text/javascript"></script>
 
-    <!--link href="./resource/css/bootstrap.css" rel="stylesheet"-->
     <style type="text/css">
         body
         {
@@ -30,16 +27,6 @@
 			font-size: 10px;
         }
 		
-		.color-danger 
-		{
-			color: #d9534f;
-		}
-		
-		.color-default 
-		{
-			color: #555;
-		}
-
 		.tab-content
 		{
 			padding:5px
@@ -57,6 +44,31 @@
 		{
 			background-color: #dff0d8 !important;
 		}
+		
+		.nav-tabs > li 
+		{
+			position:relative;    
+		}
+
+		.nav-tabs > li > a 
+		{
+			display:inline-block;
+		}
+
+		.nav-tabs > li > #closeTab 
+		{
+			display:none;
+			cursor:pointer;
+			position:absolute;
+			right: 6px;
+			top: 8px;
+			color: #d9534f;
+		}
+
+		.nav-tabs > li:hover > #closeTab 
+		{
+			display: inline-block;
+		}
 
         #tableOnline th
         {
@@ -66,7 +78,6 @@
 
 
     </style>
-	<!--link href="./resource/css/bootstrap-theme.css" rel="stylesheet"-->
 
     <script>
 		
@@ -76,6 +87,7 @@
 	  var isFirstMessagePrivateChat = new Map();
 	  var online = 0;
 	  var chats = new Map();
+	  var unreadMessage = new Map();
 	  
 	  var eb = new EventBus("/eventbus/");
 	  eb.onopen = function ()
@@ -115,6 +127,18 @@
 				}
 				else
 					$('#tweets > tbody > tr:first').before($messageLine);
+					
+				//не прочитанные.
+				var activeTab = getActiveTab();
+				console.log("Publish tweet. ActiveTab: " + activeTab);
+				if (activeTab != 'newTweets')
+				{
+					var val = unreadMessage.get("0") + 1;
+					unreadMessage.set("0", val);
+					//$("#badge0").disabled = false;
+					document.getElementById("badge0").style.visibility = "visible";
+					$("#badge0").text(val);
+				}
 			}
 
 			if (json.type == 'register')
@@ -147,6 +171,7 @@
 					console.log('Register handler: ' + uuid);
 					eb.registerHandler('com.chat.' + uuid, comChatProcessing);
 					//eb.registerHandler('com.chat.' + json.uuid, privateChatProcessing);
+					unreadMessage.set('0', 0);
                 }
 
 				var duration = '<span id="runner' + json.client.id + '"></span>';
@@ -187,12 +212,8 @@
 		var chatFromId = String(response.chat.fromId);
 		var chatId = null;
 		var chatAddr = String(response.chat.address);
-		//var address = 'private.server.' + chatAddr;
-		//console.log('Private chat address: ' + chatAddr);
 		
 		eb.registerHandler('private.chat.' + chatAddr, privateChatProcessing);
-		
-		//console.log("Put to chats: chatToId: " + chatToId + ", address: " + chatAddr);
 		
 		if (chatToId == id)
 			chatId = chatFromId;
@@ -200,66 +221,8 @@
 			chatId = chatToId;
 			
 		chats.set(chatId, 'private.server.' + chatAddr);
+		unreadMessage.set(chatId, 0);
 		isFirstMessagePrivateChat.set(chatId, true);
-		//console.log("Is put to CHATS");
-		
-		/*
-		console.log('PRIVATE CHAT, MSG=' + msg.body);
-		
-		var json = jQuery.parseJSON(msg.body);
-		
-		if (json.type == 'SUCCESS_CREATE' || json.type == 'ALREADY_INVITE')
-		{
-			var address = json.info.address;
-			var toIdHost = json.info.toIdHost;
-			var toIdPort = json.info.toIdPort;
-			var toId = json.info.toId;
-			var fromId = json.info.fromId;
-			var isCreator = json.info.creator;
-			
-			chats.set(toId, address);
-			//chats.delete(toId); //удаление из map'ы.
-			
-			if (isCreator)
-			{
-				var isExist = isExistTab(toId);
-				if (isExist)
-					$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
-				else
-				{
-					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat-' + toId + '">'
-						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
-
-					$('<div class="tab-pane fade" id="privateChat-' + toId + '">'
-						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
-						
-					$('#tabs a:last').tab('show');
-				}
-				
-			}
-		}
-		
-		if (json.type == 'LIMIT_CREATED')
-		{
-			var msg = 'Вы можете быть инициатором не более 7 приватных чатов';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}
-		
-		if (json.type == 'ALREADY_CREATED')
-		{
-			var msg = 'Приватный чат с этим пользователей уже был создан';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}
-		
-		if (json.type == 'UNSECCESS')
-		{
-			var msg = 'Не удалось создать приватный чат';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}*/
-		
 	  }
 		
 	  function dataChatProcessing(err, msg)
@@ -314,6 +277,7 @@
 		
 		var t = Date.parse(json.time);
 		var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
+		var message = null;
 		var toId = String(json.toId);
 		var fromId = String(json.fromId);
 		var inId = null;
@@ -322,15 +286,27 @@
 			inId = fromId;
 		else
 			inId = toId;
-		
+			
 		
 		var isExist = isExistTab(inId);
 		if (!isExist)
 		{
-			createTab(inId, false);
+			if (json.type == "unregister")
+				return;
+			else
+				createTab(inId, false);
 		}
-
+		
 		var bgcolor = ' bgcolor="#ffffff"';
+		
+		if (json.type == "unregister")
+		{
+			message = 'Собеседник покинул чат';
+			bgcolor = ' bgcolor="#f2dede"';
+			chats.delete(inId);
+		}
+		else
+			message = json.message;
 
 		if (host != null && port != null
 		    && host == json.host && port == json.port)
@@ -340,77 +316,33 @@
 
 		var $messageLine = $('<tr' + bgcolor + '><td align="left">' + tf
 			+ '</td><td align="left">' + json.host
-			+ '</td><td>' + json.message
+			+ '</td><td>' + message
 			+ '</td></tr>');
 
 		if (isFirstMessagePrivateChat.get(inId))
 		{
-			console.log("IS FIRST");
+			//console.log("IS FIRST");
 			$('#privateTweets_' + inId).append($messageLine);
 			isFirstMessagePrivateChat.set(inId, false);
 		}
 		else
 		{
-			console.log("IS NOT FIRST");
+			//console.log("IS NOT FIRST");
 			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);
 		}
-			
-			
-		/*
-		var json = jQuery.parseJSON(msg.body);
 		
-		if (json.type == 'SUCCESS_CREATE' || json.type == 'ALREADY_INVITE')
+		//непрочитанные.
+		var activeTab = getActiveTab();
+		console.log("Private tweet. ActiveTab: " + activeTab);
+		if (activeTab != ('privateChat_' + inId))
 		{
-			var address = json.info.address;
-			var toIdHost = json.info.toIdHost;
-			var toIdPort = json.info.toIdPort;
-			var toId = json.info.toId;
-			var fromId = json.info.fromId;
-			var isCreator = json.info.creator;
-			
-			chats.set(toId, address);
-			//chats.delete(toId); //удаление из map'ы.
-			
-			if (isCreator)
-			{
-				var isExist = isExistTab(toId);
-				if (isExist)
-					$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
-				else
-				{
-					$('<li id="tabPrivateChat' + toId +'"><a data-toggle="tab" href="#privateChat-' + toId + '">'
-						+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + toIdHost + ':' + toIdPort + ']</a></li>').appendTo('#tabs');
-
-					$('<div class="tab-pane fade" id="privateChat-' + toId + '">'
-						+ '<h3> Приватный чат [' + toIdHost + ':' + toIdPort + ']</h3></div>').appendTo('.tab-content');
-						
-					$('#tabs a:last').tab('show');
-				}
+			var val = unreadMessage.get(inId) + 1;
+			unreadMessage.set(inId, val);
+			//$("#badge" + toId).disabled = false;
+			document.getElementById("badge" + inId).style.visibility = "visible";
+			$("#badge" + inId).text(val);
+		}
 				
-			}
-		}
-		
-		if (json.type == 'LIMIT_CREATED')
-		{
-			var msg = 'Вы можете быть инициатором не более 7 приватных чатов';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}
-		
-		if (json.type == 'ALREADY_CREATED')
-		{
-			var msg = 'Приватный чат с этим пользователей уже был создан';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}
-		
-		if (json.type == 'UNSECCESS')
-		{
-			var msg = 'Не удалось создать приватный чат';
-			console.log('Info create private chat: ' + msg);
-			alert(msg);
-		}*/
-		
 	  }
 	  
 	  function isExistTab(tabId)
@@ -460,11 +392,6 @@
 	  
 	  function createTab(toId, show)
 	  {
-		//var isExist = isExistTab(toId);
-		//if (isExist)
-		//	$('#tabs a[href="#privateChat-' + toId + '"]').tab('show');
-		//else
-		//{
 			var tr = $('#clientId' + toId);	
 			var tdIP = $(tr).find("td:eq(0)").html();
 			var tdPort = $(tr).find("td:eq(1)").html();
@@ -472,7 +399,8 @@
 			//console.log("IP: " + tdIP + ", Port: " + tdPort);
 			
 			$('<li id="tabPrivateChat_' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
-				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + tdIP + ':' + tdPort + ']</a></li>').appendTo('#tabs');
+				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + tdIP + ':' + tdPort 
+				+ '] <span class="badge alert-success" id="badge' + toId + '" style="visibility:hidden">0</span></a><span id="closeTab" class="glyphicon glyphicon-remove"></span></li>').appendTo('#tabs');
 			
 			var chatTable = '<table id="privateTweets_' + toId + '" class="table table-hover" width="100%">' +
 						'<colgroup>' +
@@ -487,8 +415,9 @@
 			
 			if (show)
 				$('#tabs a:last').tab('show');
-			
-		//}
+				
+		unreadMessage.set(toId, 0);
+
 	  }
 	  
 	  function isActivePrivatChatTab()
@@ -506,6 +435,7 @@
 			console.log('Active nav-tab: ' + activeTab);
 			return activeTab;
 		}
+		
 
 	  $(document).ready(function()
 	  {
@@ -523,24 +453,7 @@
 				{
 					var activeTab = getActiveTab();
 					var toId = String(activeTab).split('_')[1];
-					
-					/*
-					for (var [key, value] of chats) 
-					{
-					  console.log("Chats pair: " + key + " = " + value);
-					}*/
-					
-					/*
-					chats.forEach(function(value, key) 
-					{
-					  console.log("Chats pair: " + key + " = " + value);
-					  if (key == toId)
-						console.log("Key: " + key + " == toID: " + toId);
-					  else
-						console.log("Key: " + key + " != toID: " + toId);
-					}, chats);*/
-					
-					
+
 					if (chats.has(toId))
 					{
 						var addr = chats.get(toId);
@@ -569,12 +482,6 @@
 			}
 		});
 		
-		/*
-		$(".nav-tabs a").click(function()
-		{
-			$(this).tab('show');
-			console.log('Changed tab');
-		});*/
 		//переключение вкладок.
 		$(document).on( 'shown.bs.tab', 'a[data-toggle="tab"]', function (e) 
 		{
@@ -594,7 +501,38 @@
 				document.getElementById("online").style.color = "#555";
 				$('#online').text(online);
 			}
+			
+			if (tab != 'paneTableOnline')
+			{
+				if (tab == 'newTweets')
+				{
+					var val = unreadMessage.get('0');
+					unreadMessage.set('0', 0);
+					$("#badge0").text(0);
+					//$("#badge0").disabled = true;
+					document.getElementById("badge0").style.visibility = "hidden";
+				}
+				else
+				{
+					var idTab = tab.split('_')[1];
+					var val = unreadMessage.get(idTab);
+					unreadMessage.set(idTab, 0);
+					$("#badge" + idTab).text(0);
+					//$("#badge" + idTab).disabled = true;
+					document.getElementById("badge" + idTab).style.visibility = "hidden";
+				}
+			}
 		});
+		
+		//закрыть вкладку.
+		$(".nav-tabs").on("click", "#closeTab", function () 
+		{
+			var anchor = $(this).siblings('a');
+			$(anchor.attr('href')).remove();
+			$(this).parent().remove();
+			$(".nav-tabs li").children('a').first().click();
+		});
+		
 	  });
 	  
 	  	  
@@ -670,7 +608,7 @@
 			<ul class="nav nav-tabs" id="tabs">
 				<li class="active" id="tabNewTweets"><a data-toggle="tab" href="#newTweets">
 					<span class="glyphicon glyphicon-fire"></span>
-					 Новые твиты</a></li>
+					 Новые твиты <span class="badge alert-success" id="badge0" style="visibility:hidden">0</span></a></li>
 				<li id="tabPaneTableOnline"><a data-toggle="tab" href="#paneTableOnline">
 					<span class="glyphicon glyphicon-user"></span>
 					 Онлайн</a></li>

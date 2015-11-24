@@ -68,6 +68,30 @@ public class CClient
         return null;
     }
 
+    public static List<String> closeChat(int id)
+    {
+        //TODO: реализовать семафор.
+        List<CChat> removeChats = new LinkedList<CChat>();
+        List<String> chatsAddress = new LinkedList<String>();
+
+        for(CChat chat : privateChats)
+        {
+            if (chat.getFromId() == id || chat.getToId() == id)
+            {
+                removeChats.add(chat);
+                chatsAddress.add(chat.getAddress());
+            }
+        }
+
+        for (CChat removeChat : removeChats)
+        {
+            if (privateChats.contains(removeChat))
+                privateChats.remove(removeChat);
+        }
+
+        return chatsAddress;
+    }
+
     private int getIdByAddress(String host, int port)
     {
         String addr = host.concat(":").concat(String.valueOf(port));

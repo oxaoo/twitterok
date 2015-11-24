@@ -138,10 +138,12 @@ public class CServer extends AbstractVerticle
                 sendEvent(event);
 
             if (event.type() == REGISTER)
+            //if (event.type() == SOCKET_CREATED)
                 registerEvent(event);
 
 
-            if (event.type() == UNREGISTER)
+            //if (event.type() == UNREGISTER)
+            if (event.type() == SOCKET_CLOSED)
                 unregisterEvent(event);
 
             event.complete(true);
@@ -150,11 +152,11 @@ public class CServer extends AbstractVerticle
 
     private boolean sendEvent(BridgeEvent event)
     {
-        log.info("Send event called.");
+        //log.info("Send event called.");
         String eventAddr = event.rawMessage().getString("address");
         String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-        log.info("Event address: " + eventAddr);
+        //log.info("Event address: " + eventAddr);
 
         //создание чата.
         if (Pattern.compile("com\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
@@ -242,72 +244,6 @@ public class CServer extends AbstractVerticle
         return false;
     }
 
-        /*
-        if (event.rawMessage().getString("address").equals("com.to.server"))
-        {
-            String json = event.rawMessage().getString("body");
-
-            CComInfo info = new Gson().fromJson(json, CComInfo.class);
-            if (info.fromId == 0 || info.toId == 0)
-                return false;
-
-            String host = event.socket().remoteAddress().host();
-            int port = event.socket().remoteAddress().port();
-
-            CClient fromClient = CClient.getClient(info.fromId);
-
-            if (fromClient == null)
-                return false;
-
-            if (fromClient.getHost().equals(host) && fromClient.getPort() == port)
-            {
-                CPrivateChat.statusChat status = fromClient.privateChat.addNewChat(info.fromId, info.toId);
-
-                CChatInfo createdChat = fromClient.privateChat.getCreatedChatInfo(info.toId);
-                CClient toClient = CClient.getClient(info.toId);
-                CChatInfo invitedChat = null;
-                if (toClient != null)
-                    invitedChat = toClient.privateChat.getInvitedChatInfo(info.fromId);
-
-
-                Map<String, Object> responseCreate = new HashMap<String, Object>();
-                Map<String, Object> responseInvite = new HashMap<String, Object>();
-                responseCreate.put("type", status);
-
-                switch (status)
-                {
-                    case LIMIT_CREATED:
-                        break;
-                    case ALREADY_CREATED:
-                        break;
-                    case ALREADY_INVITE:
-                        responseCreate.put("info", createdChat);
-                        break;
-                    case SUCCESS_CREATE:
-                        responseCreate.put("info", createdChat);
-                        responseInvite.put("type", CPrivateChat.statusChat.SUCCESS_INVITE);
-                        responseInvite.put("info", invitedChat);
-                        break;
-                    case UNSECCESS:
-                        break;
-                    default:
-                        log.warn("Something went wrong...");
-                }
-
-                log.info("JSON RESPONSE CREATE: " + new Gson().toJson(responseCreate).toString());
-                if (status == CPrivateChat.statusChat.SUCCESS_CREATE)
-                    vertx.eventBus().send(createdChat.address, new Gson().toJson(responseInvite));
-
-                vertx.eventBus().send(fromClient.getUuid().toString(), new Gson().toJson(responseCreate));
-            }
-            else return false;
-
-        }
-
-        return false;*/
-
-
-
     protected boolean publishEvent(BridgeEvent event)
     {
         if (event.rawMessage().getString("address").equals("chat.to.server"))
@@ -357,7 +293,7 @@ public class CServer extends AbstractVerticle
                     parms.put("uuid", client.getUuid());
                     parms.put("online", CClient.getOnline());
 
-                    log.info("JSON PARMS: " + new Gson().toJson(parms));
+                    //log.info("JSON PARMS: " + new Gson().toJson(parms));
                     vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
 
 
@@ -366,7 +302,7 @@ public class CServer extends AbstractVerticle
                     parms2.put("client", client);
                     parms2.put("clients", CClient.getOnlineList());
 
-                    log.info("JSON PARMS2: " + new Gson().toJson(parms2));
+                    //log.info("JSON PARMS2: " + new Gson().toJson(parms2));
                     vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
                     //TODO: заменить data.on.chat на con.chat.UUID.
                 }
@@ -375,7 +311,14 @@ public class CServer extends AbstractVerticle
 
     protected void unregisterEvent(BridgeEvent event)
     {
-        if (event.rawMessage() == null)
+        if (event.rawMessage() != null)
+        {
+            log.info("RawMessage: " + event.rawMessage());
+        }
+        else
+            log.info("Event is null");
+
+        //if (event.rawMessage() == null)
             new Thread(new Runnable()
             {
                 @Override
@@ -388,15 +331,27 @@ public class CServer extends AbstractVerticle
                     if (client == null)
                         return;
 
-                    Map<String, Object> parms = new HashMap<String, Object>(3);
+                    List<String> closedAddress = CClient.closeChat(client.getId());
+                    String time = Calendar.getInstance().getTime().toString();
 
-                    parms.put("type", "unregister");
-                    parms.put("online", CClient.getOnline());
-                    parms.put("client", client);
+                    for (String address : closedAddress)
+                    {
+                        Map<String, Object> notices = new TreeMap<String, Object>();
+                        notices.put("type", "unregister");
+                        notices.put("time", time);
+                        notices.put("host", host);
+                        notices.put("port", port);
+                        //notices.put("message", "—обеседник покинул чат");
+                        notices.put("toId", client.getId());
+                        vertx.eventBus().publish("private.chat." + address, new Gson().toJson(notices));
+                    }
 
+                    Map<String, Object> notice = new TreeMap<String, Object>();
+                    notice.put("type", "unregister");
+                    notice.put("online", CClient.getOnline());
+                    notice.put("client", client);
                     log.info("Unregister handler: " + client.toString());
-
-                    vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
+                    vertx.eventBus().publish("chat.to.client", new Gson().toJson(notice));
                 }
             }).start();
     }
