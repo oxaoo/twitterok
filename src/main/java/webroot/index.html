@@ -27,6 +27,12 @@
 			font-size: 10px;
         }
 		
+		input[type=text]:focus, textarea:focus 
+		{
+		  box-shadow: 0 0 5px #4cae4c;
+		  border: 1px solid #4cae4c;
+		}
+		
 		.tab-content
 		{
 			padding:5px
@@ -84,7 +90,7 @@
 	  var host = null, port = null, id = null, uuid = null;
 	  var isNewSession = true;
 	  var isFirstMessage = true;
-	  var isFirstMessagePrivateChat = new Map();
+	  //var isFirstMessagePrivateChat = new Map();
 	  var online = 0;
 	  var chats = new Map();
 	  var unreadMessage = new Map();
@@ -120,6 +126,14 @@
 					+ '</td><td>' + json.message
 					+ '</td></tr>');
 
+				var countTweets = $('#tweets tr').length;
+				console.log("Count Tweets: " + countTweets);
+				if (countTweets == 0)
+					$('#tweets').append($messageLine);
+				else
+					$('#tweets > tbody > tr:first').before($messageLine);
+				
+				/*
 				if (isFirstMessage)
 				{
 					$('#tweets').append($messageLine);
@@ -127,6 +141,7 @@
 				}
 				else
 					$('#tweets > tbody > tr:first').before($messageLine);
+				*/
 					
 				//не прочитанные.
 				var activeTab = getActiveTab();
@@ -205,16 +220,17 @@
 	  {
 		//Обработка информации о новых соединениях.
 		console.log('Communication chat get message: ' + msg.body);
-		var response = jQuery.parseJSON(msg.body);
+		var chatInfo = jQuery.parseJSON(msg.body);
 		
-		var thrown = response.thrown;
-		var chatToId = String(response.chat.toId);
-		var chatFromId = String(response.chat.fromId);
+		//var thrown = response.thrown;
+		var chatToId = String(chatInfo.toId);
+		var chatFromId = String(chatInfo.fromId);
 		var chatId = null;
-		var chatAddr = String(response.chat.address);
+		var chatAddr = String(chatInfo.address);
 		
 		eb.registerHandler('private.chat.' + chatAddr, privateChatProcessing);
 		
+	
 		if (chatToId == id)
 			chatId = chatFromId;
 		else
@@ -222,7 +238,7 @@
 			
 		chats.set(chatId, 'private.server.' + chatAddr);
 		unreadMessage.set(chatId, 0);
-		isFirstMessagePrivateChat.set(chatId, true);
+		//isFirstMessagePrivateChat.set(chatId, true);
 	  }
 		
 	  function dataChatProcessing(err, msg)
@@ -319,6 +335,15 @@
 			+ '</td><td>' + message
 			+ '</td></tr>');
 
+			
+		var countPrivateTweets = $('#privateTweets_' + inId + ' tr').length;
+		console.log("Count Private Tweets: " + countPrivateTweets);
+		if (countPrivateTweets == 0)
+			$('#privateTweets_' + inId).append($messageLine);
+		else
+			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);	
+		
+		/*
 		if (isFirstMessagePrivateChat.get(inId))
 		{
 			//console.log("IS FIRST");
@@ -329,7 +354,7 @@
 		{
 			//console.log("IS NOT FIRST");
 			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);
-		}
+		}*/
 		
 		//непрочитанные.
 		var activeTab = getActiveTab();
@@ -363,30 +388,37 @@
 
 	  function privateTweetFun(toId)
 	  {
-		console.log('ID:' + toId);
+		console.log('Call privateTweetFun for TOID:' + toId);
+		
+		toId = String(toId);
 		
 		var isExist = isExistTab(toId);
 		console.log('isExist: ' + isExist);
 		if (isExist)
 		{
+			console.log("Tab private chat for TOID: " + toId + " is exist");
 			//console.log('Show tab: ' + '#tabs a[href="#tabPrivateChat' + toId + '"]');
 			$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
 		}
 		else
 		{
-			var info = new Object();
-			info.fromId = id;
-			info.toId  = toId;
-			var jInfo= JSON.stringify(info);
-			
-			//eb.send("com.to.server", jInfo);
-			if (uuid != null)
+			console.log("Tab private chat for TOID: " + toId + " is NOT exist");
+			if (!chats.has(toId))
 			{
-				eb.send("com.server." + uuid, jInfo);
-				createTab(toId, true);
+				console.log("Created new private chat...");
+				var chatInfo = new Object();
+				chatInfo.fromId = id;
+				chatInfo.toId  = toId;
+				var jChatInfo = JSON.stringify(chatInfo);
+				
+				//eb.send("com.to.server", jInfo);
+				if (uuid != null)
+					eb.send("com.server." + uuid, jChatInfo);
+				else
+					console.log('UUID is NULL');
 			}
-			else
-				console.log('UUID is NULL');
+			
+			createTab(toId, true);
 		}
 	  }
 	  
@@ -487,13 +519,18 @@
 		{
 			var tab = String(e.target).split('#')[1];
 			//console.log('TAB: ' + tab);
+			//tabPrivateChat_
+			var tabText = $('#' + tab).text();
+			console.log("Text of tab " + tab + " is: " + tabText);
 			
 			if (tab != 'newTweets' && tab != 'paneTableOnline')
 			{
 				//TODO: поменять цвет.
 				document.getElementById("onlineEye").style.color = "#d9534f";
 				document.getElementById("online").style.color = "#d9534f";
-				$('#online').text(1);
+				var addr = $('#tabPrivateChat_' + tab.split('_')[1]).text();
+				addr = addr.substring(addr.indexOf('[') + 1, addr.indexOf(']'));
+				$('#online').text(addr);
 			}
 			else
 			{

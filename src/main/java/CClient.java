@@ -1,5 +1,3 @@
-import com.google.gson.Gson;
-
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -11,7 +9,7 @@ public class CClient
     private static AtomicInteger online = new AtomicInteger(0);
     private static Map<Integer, CClient> clients = new ConcurrentHashMap<Integer, CClient>();
     private static Map<String, Integer> addrMap = new ConcurrentHashMap<String, Integer>();
-    private static CopyOnWriteArrayList<CChat> privateChats = new CopyOnWriteArrayList<CChat>();
+    private static CopyOnWriteArrayList<CChatInfo> privateChats = new CopyOnWriteArrayList<CChatInfo>();
 
     //public final transient CPrivateChat privateChat;
 
@@ -38,13 +36,13 @@ public class CClient
         clients.put(id, this);
     }
 
-    public static int indexPrivateChat(CChat chat)
+    public static int indexPrivateChat(CChatInfo chat)
     {
         //return privateChats.contains(chat);
         return privateChats.indexOf(chat);
     }
 
-    public static boolean addPrivateChat(CChat chat)
+    public static boolean addPrivateChat(CChatInfo chat)
     {
         if (privateChats.contains(chat))
             return false;
@@ -52,14 +50,14 @@ public class CClient
         return privateChats.add(chat);
     }
 
-    public static CChat getPrivateChat(int index)
+    public static CChatInfo getPrivateChat(int index)
     {
         return privateChats.get(index);
     }
 
-    public static CChat getChatByAddress(String address)
+    public static CChatInfo getChatByAddress(String address)
     {
-        for(CChat chat : privateChats)
+        for(CChatInfo chat : privateChats)
         {
             if (chat.getAddress().equals(address))
                 return chat;
@@ -71,10 +69,10 @@ public class CClient
     public static List<String> closeChat(int id)
     {
         //TODO: реализовать семафор.
-        List<CChat> removeChats = new LinkedList<CChat>();
+        List<CChatInfo> removeChats = new LinkedList<CChatInfo>();
         List<String> chatsAddress = new LinkedList<String>();
 
-        for(CChat chat : privateChats)
+        for(CChatInfo chat : privateChats)
         {
             if (chat.getFromId() == id || chat.getToId() == id)
             {
@@ -83,7 +81,7 @@ public class CClient
             }
         }
 
-        for (CChat removeChat : removeChats)
+        for (CChatInfo removeChat : removeChats)
         {
             if (privateChats.contains(removeChat))
                 privateChats.remove(removeChat);

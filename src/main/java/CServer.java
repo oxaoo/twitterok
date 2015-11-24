@@ -1,5 +1,5 @@
 import com.google.gson.Gson;
-import java.util.regex.Matcher;
+
 import java.util.regex.Pattern;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Starter;
@@ -152,7 +152,8 @@ public class CServer extends AbstractVerticle
 
     private boolean sendEvent(BridgeEvent event)
     {
-        //log.info("Send event called.");
+        log.info("Send event called, message: " + event.rawMessage().toString());
+
         String eventAddr = event.rawMessage().getString("address");
         String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
@@ -164,11 +165,12 @@ public class CServer extends AbstractVerticle
             String uuidClient = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
             String json = event.rawMessage().getString("body");
             //log.info("JSON: " + json);
-            CChat info = new Gson().fromJson(json, CChat.class);
+            CChatInfo chatInfo = new Gson().fromJson(json, CChatInfo.class);
+            chatInfo.genAddress();
 
-            if (info.getFromId() == 0 || info.getToId() == 0)
+            if (chatInfo.getFromId() == 0 || chatInfo.getToId() == 0)
             {
-                log.info("FromId=" + info.getFromId() + ", ToId=" + info.getToId());
+                log.info("FromId=" + chatInfo.getFromId() + ", ToId=" + chatInfo.getToId());
                 return false;
             }
 
@@ -176,30 +178,46 @@ public class CServer extends AbstractVerticle
             String ip = event.socket().remoteAddress().host();
             int port = event.socket().remoteAddress().port();
             //if (!CClient.getClient(info.getFromId()).getUuid().toString().equals(uuidClient))
-            if (CClient.getClient(ip, port).getId() != info.getFromId())
+            if (CClient.getClient(ip, port).getId() != chatInfo.getFromId())
             {
                 log.info("Hacking");
                 return false;
             }
 
-            CChat thinChat = new CChat(info.getFromId(), info.getToId());
+            //CChatInfo thinChat = new CChatInfo(chatInfo.getFromId(), chatInfo.getToId());
+            log.info("Chat Info: " + chatInfo.toString());
             //CClient fromClient = CClient.getClient(info.getFromId());
-            int index = CClient.indexPrivateChat(thinChat);
-            if (index == -1) CClient.addPrivateChat(thinChat);
-            else thinChat = CClient.getPrivateChat(index); //unique uuid.
+            int index = CClient.indexPrivateChat(chatInfo);
+            if (index == -1) CClient.addPrivateChat(chatInfo);
+            else chatInfo = CClient.getPrivateChat(index); //unique uuid.
+
+            log.info("Chat Info index: " + index);
+            log.info("Chat Info after: " + chatInfo.toString());
 
 
-            CClient toClient = CClient.getClient(info.getToId());
+            CClient toClient = CClient.getClient(chatInfo.getToId());
 
-            Map<String, Object> response = new TreeMap<String, Object>();
-            response.put("thrown", true);
-            response.put("chat", thinChat);
+            //Map<String, Object> response = new TreeMap<String, Object>();
+            //response.put("thrown", true);
+            //response.put("chat", chatInfo);
+
+            String fromIdAddress = CClient.getClient(chatInfo.getFromId()).getUuid().toString();
+            String toIdAddress = CClient.getClient(chatInfo.getToId()).getUuid().toString();
+
+            log.info("Send chat info to: com.chat." + fromIdAddress + ", message: " + new Gson().toJson(chatInfo));
+            log.info("Send chat info to: com.chat." + toIdAddress + ", message: " + new Gson().toJson(chatInfo));
+
+            vertx.eventBus().send("com.chat." + fromIdAddress, new Gson().toJson(chatInfo));
+            vertx.eventBus().send("com.chat." + toIdAddress, new Gson().toJson(chatInfo));
+
+
+            /*
             vertx.eventBus().send("com.chat." + uuidClient, new Gson().toJson(response));
             //log.info("Send message to: com.chat." + uuidClient + "; Response: " + new Gson().toJson(response));
-            response.put("thrown", false);
+            //response.put("thrown", false);
             vertx.eventBus().send("com.chat." + toClient.getUuid(), new Gson().toJson(response));
             //log.info("Send message to: com.chat." + toClient.getUuid() + "; Response: " + new Gson().toJson(response));
-
+            */
             return true;
         }
 
@@ -219,7 +237,7 @@ public class CServer extends AbstractVerticle
 
             CClient fromClient = CClient.getClient(ip, port);
 
-            CChat chat = CClient.getChatByAddress(uuidAddress);
+            CChatInfo chat = CClient.getChatByAddress(uuidAddress);
             if (chat == null)
             {
                 log.info("There is no a chat with the address: " + uuidAddress);
