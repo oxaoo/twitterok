@@ -5,454 +5,442 @@
     <meta charset="windows-1251">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
-    <script src="vertx-eventbus.js"></script>
-	<script src="date-format.js"></script>
-
 	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 	<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	<script src="vertx-eventbus.js"></script>
+	<script src="date-format.js"></script>
 	<script src="jquery.runner.js" type="text/javascript"></script>
 
     <style type="text/css">
-        body
-        {
-			padding-top: 40px;
-			padding-bottom: 40px;
-			background-color: #f5f5f5;
-        }
+    body
+    {
+		padding-top: 40px;
+		padding-bottom: 40px;
+		background-color: #f5f5f5;
+    }
 
-        .received
-        {
-			width: 160px;
-			font-size: 10px;
-        }
+    .received
+    {
+		width: 160px;
+		font-size: 10px;
+    }
 		
-		input[type=text]:focus, textarea:focus 
-		{
-		  box-shadow: 0 0 5px #4cae4c;
-		  border: 1px solid #4cae4c;
-		}
+	input[type=text]:focus, textarea:focus 
+	{
+		box-shadow: 0 0 5px #4cae4c;
+		border: 1px solid #4cae4c;
+	}
 		
-		.tab-content
-		{
-			padding:5px
-		}
+	.tab-content
+	{
+		padding:5px
+	}
 
-		.nav-tabs > li > a,
-		.nav-tabs > li > a:hover
-		{
-			color: #3c763d;
-		}
+	#tableOnline th
+    {
+        text-align: center;
+        vertical-align: middle;
+    }
 
-		.nav-tabs > li.active > a,
-		.nav-tabs > li.active > a:focus,
-		.nav-tabs > li.active > a:hover
-		{
-			background-color: #dff0d8 !important;
-		}
+	.nav-tabs > li > a,
+	.nav-tabs > li > a:hover
+	{
+		color: #3c763d;
+	}
+
+	.nav-tabs > li.active > a,
+	.nav-tabs > li.active > a:focus,
+	.nav-tabs > li.active > a:hover
+	{
+		background-color: #dff0d8 !important;
+	}
 		
-		.nav-tabs > li 
-		{
-			position:relative;    
-		}
+	.nav-tabs > li 
+	{
+		position:relative;    
+	}
 
-		.nav-tabs > li > a 
-		{
-			display:inline-block;
-		}
+	.nav-tabs > li > a 
+	{
+		display:inline-block;
+	}
 
-		.nav-tabs > li > #closeTab 
-		{
-			display:none;
-			cursor:pointer;
-			position:absolute;
-			right: 6px;
-			top: 8px;
-			color: #d9534f;
-		}
+	.nav-tabs > li > #closeTab 
+	{
+		display:none;
+		cursor:pointer;
+		position:absolute;
+		right: 6px;
+		top: 8px;
+		color: #d9534f;
+	}
 
-		.nav-tabs > li:hover > #closeTab 
-		{
-			display: inline-block;
-		}
-
-        #tableOnline th
-        {
-            text-align: center;
-            vertical-align: middle;
-        }
-
-
+	.nav-tabs > li:hover > #closeTab 
+	{
+		display: inline-block;
+	}
     </style>
 
     <script>
-		
-	  var host = null, port = null, id = null, uuid = null;
-	  var isNewSession = true;
-	  var isFirstMessage = true;
-	  //var isFirstMessagePrivateChat = new Map();
-	  var online = 0;
-	  var chats = new Map();
-	  var unreadMessage = new Map();
+	
+		var host = null, port = null, id = null, uuid = null; //конфигурация текущей сессии.
+		var isNewSession = true; //флаг созданной сессии.
+		var online = 0; //счетчик онлайн-пользователей.
+		var chats = new Map(); //информация о созданных приватных чатах.
+		var unreadMessage = new Map(); //отображение чата и непрочитанных сообщений.  
+		var eb = new EventBus("/eventbus/"); //шина событий.
+	
+		eb.onopen = function ()
+		{
+			eb.registerHandler("data.on.chat", dataChatProcessing); //обработчик первичной загрузки данных при подключении.
+			eb.registerHandler("chat.to.client", eventChatProcessing); //обработчик событий в чате.
+		};
 	  
-	  var eb = new EventBus("/eventbus/");
-	  eb.onopen = function ()
-	  {
-		eb.registerHandler("data.on.chat", dataChatProcessing);
-		eb.registerHandler("chat.to.client", eventChatProcessing);
-	  };
-	  
-	  function eventChatProcessing(err, msg)
-	  {
-			//console.log('MSG BODY: ' + msg.body);
-			
-			var json = jQuery.parseJSON(msg.body);
+		//обработчик (общий) событий в чате, в т.ч. твитов.
+		function eventChatProcessing(err, msg)
+		{
+			var event = jQuery.parseJSON(msg.body);
 
-			if (json.type == 'publish')
+			//твит.
+			if (event.type == 'publish')
 			{
-				var t = Date.parse(json.time);
-				var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
+				var time = Date.parse(event.time);
+				var formattedTime = dateFormat(time, "dd.mm.yy HH:MM:ss");
 
 				var bgcolor = ' bgcolor="#ffffff"';
 
+				//если отправитель текущая сессия.
 				if (host != null && port != null
-				    && host == json.host && port == json.port)
-				{
+				    && host == event.host && port == event.port)
 				    bgcolor = ' bgcolor="#dff0d8"';
-				}
-
-				var $messageLine = $('<tr' + bgcolor + '><td align="left">' + tf
-					+ '</td><td align="left">' + json.host
-					+ '</td><td>' + json.message
-					+ '</td></tr>');
-
-				var countTweets = $('#tweets tr').length;
-				console.log("Count Tweets: " + countTweets);
-				if (countTweets == 0)
-					$('#tweets').append($messageLine);
-				else
-					$('#tweets > tbody > tr:first').before($messageLine);
 				
-				/*
-				if (isFirstMessage)
-				{
-					$('#tweets').append($messageLine);
-					isFirstMessage = false;
-				}
-				else
-					$('#tweets > tbody > tr:first').before($messageLine);
-				*/
-					
-				//не прочитанные.
-				var activeTab = getActiveTab();
-				console.log("Publish tweet. ActiveTab: " + activeTab);
-				if (activeTab != 'newTweets')
-				{
-					var val = unreadMessage.get("0") + 1;
-					unreadMessage.set("0", val);
-					//$("#badge0").disabled = false;
-					document.getElementById("badge0").style.visibility = "visible";
-					$("#badge0").text(val);
-				}
+				//добавить твит.
+				appendTweet('#tweets', '', event.host, event.message, bgcolor, formattedTime);
+				
+				//отображение бейджа не прочитанных сообщений на не активной вкладке.
+				displayBadgeMessage('newTweets', '0');
 			}
 
-			if (json.type == 'register')
+			//новый пользователь в чате.
+			if (event.type == 'register')
 			{
-				online = json.online;
+				online = event.online;
 				
+				//открыт ли приватный чат.
 				var isPrivateTab = isActivePrivatChatTab();
 				if (!isPrivateTab)
 					$('#online').text(online);
 
-				var logonTime = new Date(json.client.logontime);
+				//время входа в чат.
+				var logonTime = new Date(event.client.logontime);
 				var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
-
-				var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
-							+ 'onclick="privateTweetFun(' + json.client.id + ')" title="Приватный твит">'
-							+ '<span class="glyphicon glyphicon-envelope"></span></button>';
-
-                var bgcolor = ' ';
-                var title = '';
+	
+				var isAbout = false;
+				
+				//только для вновь созданной сессии.
                 if (isNewSession)
                 {
-                    bgcolor = ' bgcolor="#ffffff"';
-                    privateTweetBtn = ' ';
+					//инициализация текущей сессии.
                     isNewSession = false;
-                    host = json.client.host;
-                    port = json.client.port;
-                    title = ' title="Вы"';
-					id = json.client.id;
-					uuid = json.uuid;
-					console.log('Register handler: ' + uuid);
-					eb.registerHandler('com.chat.' + uuid, comChatProcessing);
-					//eb.registerHandler('com.chat.' + json.uuid, privateChatProcessing);
+                    host = event.client.host;
+                    port = event.client.port;
+					id = event.client.id;
+					uuid = event.uuid;
 					unreadMessage.set('0', 0);
+                    			
+					//регистрация обработчика коммуникации с сервером.
+					eb.registerHandler('com.chat.' + uuid, comChatProcessing);
+					isAbout = true;
                 }
 
-				var duration = '<span id="runner' + json.client.id + '"></span>';
-
-				var $newClient = $('<tr' + bgcolor + ' id="clientId' + json.client.id + '"' + title + '><td>' + json.client.host
-					+ '</td><td>' + json.client.port
-					+ '</td><td>' + logonTimeFormat
-					+ '</td><td>' + duration + ' сек'
-					+ '</td><td align="center" border="0">' + privateTweetBtn
-					+ '</td></tr>');
-
-				$('#tableOnline').append($newClient);
-
-				$('#runner' + json.client.id).runner({autostart: true, milliseconds: false});
+				//добавление информации о новых сессиях в таблицу "онлайн".
+				addEntryInTableOnline(event.client.id, event.client.host, event.client.port, logonTimeFormat, logonTime, false, isAbout);
             }
 
-			if (json.type == 'unregister')
+			//один из пользователей покинул чат.
+			if (event.type == 'close')
 			{
-				online = json.online;
+				online = event.online;
 				
 				var isPrivateTab = isActivePrivatChatTab();
 				if (!isPrivateTab)
 					$('#online').text(online);
 				
-				if (json.client != null)
-				    $('#clientId' + json.client.id).remove();
+				//удаление информации о клиенте из таблицы "онлайн".
+				if (event.client != null)
+				    $('#clientId' + event.client.id).remove();
 			}
-		}		  
+		}
 
-	function comChatProcessing(err, msg)
-	  {
-		//Обработка информации о новых соединениях.
-		console.log('Communication chat get message: ' + msg.body);
-		var chatInfo = jQuery.parseJSON(msg.body);
+		//обработчик коммуникаций с сервером уникальный для текущей сессии.
+		function comChatProcessing(err, msg)
+		{
+			var chatInfo = jQuery.parseJSON(msg.body);
 		
-		//var thrown = response.thrown;
-		var chatToId = String(chatInfo.toId);
-		var chatFromId = String(chatInfo.fromId);
-		var chatId = null;
-		var chatAddr = String(chatInfo.address);
+			var chatToId = String(chatInfo.toId);
+			var chatFromId = String(chatInfo.fromId);
+			var chatId = null;
+			var chatAddr = String(chatInfo.uuid);
 		
-		eb.registerHandler('private.chat.' + chatAddr, privateChatProcessing);
+			//регистрация обработчика приватного чата.
+			eb.registerHandler('private.chat.' + chatAddr, privateChatProcessing);
 		
-	
-		if (chatToId == id)
-			chatId = chatFromId;
-		else
-			chatId = chatToId;
+			//выявление инициатора соединения.
+			if (chatToId == id)
+				chatId = chatFromId;
+			else
+				chatId = chatToId;
 			
-		chats.set(chatId, 'private.server.' + chatAddr);
-		unreadMessage.set(chatId, 0);
-		//isFirstMessagePrivateChat.set(chatId, true);
-	  }
+			//сохранение информации о созданном приватном чате.
+			chats.set(chatId, 'private.server.' + chatAddr);
+			unreadMessage.set(chatId, 0);
+		}
 		
-	  function dataChatProcessing(err, msg)
-	  {
-		var json = jQuery.parseJSON(msg.body);
+		//обработчик первичной загрузки данных при подключении.
+		function dataChatProcessing(err, msg)
+		{
+			var data = jQuery.parseJSON(msg.body);
 
-			if (json.type == 'send')
+			if (data.type == 'send')
 			{
-				for(var i = 0; i < json.clients.length; i++)
+				//обработка информации по всем клиентам.
+				for(var i = 0; i < data.clients.length; i++)
 				{
-					//console.log('host:port ' + json.clients[i].host + ':' + json.clients[i].port + ' time=' + json.clients[i].logontime);
-					
-					if (json.clients[i].host == json.client.host && json.clients[i].port == json.client.port)
+					if (data.clients[i].host == data.client.host 
+						&& data.clients[i].port == data.client.port)
 						continue;
 					
-					var logonTime = new Date(json.clients[i].logontime);
+					//время входа.
+					var logonTime = new Date(data.clients[i].logontime);
 					var logonTimeFormat = dateFormat(logonTime, "HH:MM:ss");
 					
-					//console.log('logonTime=' + logonTime + ' logonTimeFormat=' + logonTimeFormat);
-
-					var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
-								+ 'onclick="privateTweetFun(' + json.clients[i].id + ')" title="Приватный твит">'
-								+ '<span class="glyphicon glyphicon-envelope"></span></button>';
-
-
-					var duration = '<span id="runner' + json.clients[i].id + '"></span>';
-	
-					var $newClient = $('<tr id="clientId' + json.clients[i].id + '"><td>' + json.clients[i].host
-						+ '</td><td>' + json.clients[i].port
-						+ '</td><td>' + logonTimeFormat
-						+ '</td><td>' + duration + ' сек'
-						+ '</td><td align="center" border="0">' + privateTweetBtn
-						+ '</td></tr>');
-
-					$('#tableOnline').append($newClient);
-					
-					
-					var passedTime = new Date().getTime() - json.clients[i].logontime;
-
-					$('#runner' + json.clients[i].id).runner({autostart: true, startAt: passedTime, milliseconds: false});
+					//добавление информации о уже существующих сессиях в таблицу "онлайн".
+					addEntryInTableOnline(data.clients[i].id, data.clients[i].host, data.clients[i].port, logonTimeFormat, logonTime, true, false);
 				}
 				
+				//закрыть обработчик, после загрузки данных.
 				eb.unregisterHandler("data.on.chat", dataChatProcessing);
 			}
-	  }
-
-	  function privateChatProcessing(err, msg)
-	  {
-		console.log('PRIVATE CHAT, MSG=' + msg.body);
+		}
 		
-		var json = jQuery.parseJSON(msg.body);
-		
-		var t = Date.parse(json.time);
-		var tf = dateFormat(t, "dd.mm.yy HH:MM:ss");
-		var message = null;
-		var toId = String(json.toId);
-		var fromId = String(json.fromId);
-		var inId = null;
-		
-		if (toId == id)
-			inId = fromId;
-		else
-			inId = toId;
-			
-		
-		var isExist = isExistTab(inId);
-		if (!isExist)
+		//обработчик приватного чата.
+		function privateChatProcessing(err, msg)
 		{
-			if (json.type == "unregister")
-				return;
+			var event = jQuery.parseJSON(msg.body);
+		
+			var time = Date.parse(event.time);
+			var formattedTime = dateFormat(time, "dd.mm.yy HH:MM:ss");
+			var message = null;
+			var toId = String(event.toId);
+			var fromId = String(event.fromId);
+			var inId = null;
+		
+			//выявление инициатора сообщения.
+			if (toId == id)
+				inId = fromId;
 			else
-				createTab(inId, false);
-		}
-		
-		var bgcolor = ' bgcolor="#ffffff"';
-		
-		if (json.type == "unregister")
-		{
-			message = 'Собеседник покинул чат';
-			bgcolor = ' bgcolor="#f2dede"';
-			chats.delete(inId);
-		}
-		else
-			message = json.message;
-
-		if (host != null && port != null
-		    && host == json.host && port == json.port)
-		{
-		    bgcolor = ' bgcolor="#dff0d8"';
-		}
-
-		var $messageLine = $('<tr' + bgcolor + '><td align="left">' + tf
-			+ '</td><td align="left">' + json.host
-			+ '</td><td>' + message
-			+ '</td></tr>');
-
+				inId = toId;
 			
-		var countPrivateTweets = $('#privateTweets_' + inId + ' tr').length;
-		console.log("Count Private Tweets: " + countPrivateTweets);
-		if (countPrivateTweets == 0)
-			$('#privateTweets_' + inId).append($messageLine);
-		else
-			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);	
+			//открыта ли вкладка с этим чатом.
+			var isExist = isExistTab(inId);
+			if (!isExist)
+			{
+				//сообщение о выходе из чата
+				// и вкладка не открыта
+				// не оповещать.
+				if (event.type == "close")
+					return;
+				else //создать вкладку с новым чатом.
+					createTab(inId, false);
+			}
 		
-		/*
-		if (isFirstMessagePrivateChat.get(inId))
-		{
-			//console.log("IS FIRST");
-			$('#privateTweets_' + inId).append($messageLine);
-			isFirstMessagePrivateChat.set(inId, false);
-		}
-		else
-		{
-			//console.log("IS NOT FIRST");
-			$('#privateTweets_' + inId + ' > tbody > tr:first').before($messageLine);
-		}*/
+			var bgcolor = ' bgcolor="#ffffff"';
 		
-		//непрочитанные.
-		var activeTab = getActiveTab();
-		console.log("Private tweet. ActiveTab: " + activeTab);
-		if (activeTab != ('privateChat_' + inId))
-		{
-			var val = unreadMessage.get(inId) + 1;
-			unreadMessage.set(inId, val);
-			//$("#badge" + toId).disabled = false;
-			document.getElementById("badge" + inId).style.visibility = "visible";
-			$("#badge" + inId).text(val);
+			//собеседник покинул существующий чат (завершение сессии).
+			if (event.type == "close")
+			{
+				message = 'Собеседник покинул чат';
+				bgcolor = ' bgcolor="#f2dede"';
+				chats.delete(inId);
+			}
+			else
+				message = event.message;
+
+			//выделение цвета твита автора.
+			if (host != null && port != null
+				&& host == event.host && port == event.port)
+				bgcolor = ' bgcolor="#dff0d8"';
+
+			//добавить твит.
+			appendTweet('#privateTweets_', inId, event.host, message, bgcolor, formattedTime);
+		
+			//отображение бейджа не прочитанных сообщений на не активной вкладке.
+			displayBadgeMessage('privateChat_', inId);	
 		}
-				
-	  }
 	  
-	  function isExistTab(tabId)
-	  {
-		var lis = $('#tabs li').map(function(i,n) 
+		//добавление информации о сессиях в таблицу "онлайн".
+		function addEntryInTableOnline(id, host, port, logonTimeFormat, logontime, isPassed, isAbout)
+		{
+			//кнопка приватного твита.
+			var privateTweetBtn = '<button style="width:100%; border:none; padding:0; background:none; outline:none;"'
+										+ 'onclick="privateTweetFun(' + id + ')" title="Приватный твит">'
+										+ '<span class="glyphicon glyphicon-envelope"></span></button>';
+			var bgcolor = ' ';
+            var title = '';
+			
+			//добавление информации о ТЕКУЩЕЙ записи в таблицу-онлайн.
+			if (isAbout)
+			{
+				bgcolor = ' bgcolor="#ffffff"';
+				privateTweetBtn = ' ';
+				title = ' title="Вы"';
+			}
+
+			//секундомер.
+			var duration = '<span id="runner' + id + '"></span>';
+		
+			//информация о сессии.
+			var $sessionInfo = $('<tr' + bgcolor + ' id="clientId' + id + '"' + title + '><td>' + host
+										+ '</td><td>' + port
+										+ '</td><td>' + logonTimeFormat
+										+ '</td><td>' + duration + ' сек'
+										+ '</td><td align="center" border="0">' + privateTweetBtn
+										+ '</td></tr>');
+
+			$('#tableOnline').append($sessionInfo);
+			
+			if (isPassed)
+			{
+				//для уже существующих сессиях.
+				var passedTime = new Date().getTime() - logontime;
+				$('#runner' + id).runner({autostart: true, startAt: passedTime, milliseconds: false});
+			}
+			else //для только что созданной сессии.
+				$('#runner' + id).runner({autostart: true, milliseconds: false});
+		}
+
+		//добавить твит (в таблицу твитов).
+		function appendTweet(tableTweets, id, host, message, bgcolor, formattedTime)
+		{
+			var $tweet = $('<tr' + bgcolor + '><td align="left">' + formattedTime
+					+ '</td><td align="left">' + host
+					+ '</td><td>' + message
+					+ '</td></tr>');
+
+			var countPrivateTweets = $(tableTweets + id + ' tr').length;
+			if (countPrivateTweets == 0)
+				$(tableTweets + id).append($tweet);
+			else
+				$(tableTweets + id + ' > tbody > tr:first').before($tweet);	
+		}
+		
+		//отобаржение бейджа непрочитанных сообщений на вкладке.
+		function displayBadgeMessage(tab, id)
+		{
+			//var strId = String(id);
+			id = String(id);
+			var activeTab = getActiveTab();
+			
+			var curTab = null;
+			if (tab == 'newTweets')
+				curTab = tab;
+			else
+				curTab = tab + id;
+			
+			if (activeTab != curTab)
+			{
+				//вкладка с новым твитом не активна.
+				var val = unreadMessage.get(id) + 1;
+				unreadMessage.set(id, val);
+				document.getElementById('badge' + id).style.visibility = "visible";
+				$('#badge' + id).text(val);
+			}
+		}
+	  
+		//проверка существования вкладки приватного чата.
+		function isExistTab(tabId)
+		{
+			var lis = $('#tabs li').map(function(i,n) 
 			{
 				return $(n).attr('id');
 			}).get();
 			
-		for (var i = 0; i < lis.length; i++)
-		{
-			if ('tabPrivateChat_' + tabId == lis[i])
-				return true;
-		}
-		
-		return false;
-	  }
-
-	  function privateTweetFun(toId)
-	  {
-		console.log('Call privateTweetFun for TOID:' + toId);
-		
-		toId = String(toId);
-		
-		var isExist = isExistTab(toId);
-		console.log('isExist: ' + isExist);
-		if (isExist)
-		{
-			console.log("Tab private chat for TOID: " + toId + " is exist");
-			//console.log('Show tab: ' + '#tabs a[href="#tabPrivateChat' + toId + '"]');
-			$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
-		}
-		else
-		{
-			console.log("Tab private chat for TOID: " + toId + " is NOT exist");
-			if (!chats.has(toId))
+			for (var i = 0; i < lis.length; i++)
 			{
-				console.log("Created new private chat...");
-				var chatInfo = new Object();
-				chatInfo.fromId = id;
-				chatInfo.toId  = toId;
-				var jChatInfo = JSON.stringify(chatInfo);
-				
-				//eb.send("com.to.server", jInfo);
-				if (uuid != null)
-					eb.send("com.server." + uuid, jChatInfo);
-				else
-					console.log('UUID is NULL');
+				if ('tabPrivateChat_' + tabId == lis[i])
+					return true;
 			}
-			
-			createTab(toId, true);
+		
+			return false;
 		}
-	  }
+
+		//инициатор приватного твита.
+		function privateTweetFun(toId)
+		{
+			toId = String(toId);
+		
+			var isExist = isExistTab(toId);
+			if (isExist) //вкладка чата существует.
+				$('#tabs a[href="#privateChat_' + toId + '"]').tab('show');
+			else //вкладка чата не существует.
+			{
+				if (!chats.has(toId))
+				{
+					// и чат еще не создан.
+					var chatInfo = new Object();
+					chatInfo.fromId = id;
+					chatInfo.toId  = toId;
+					var jChatInfo = JSON.stringify(chatInfo);
+					
+					if (uuid != null)
+						eb.send("com.server." + uuid, jChatInfo);
+					else
+						console.log('UUID is NULL');
+				}
+				
+				//создание вкладки чата.
+				createTab(toId, true);
+			}
+		}
 	  
-	  function createTab(toId, show)
-	  {
+		//создание вкладки приватного чата.
+		function createTab(toId, show)
+		{
 			var tr = $('#clientId' + toId);	
 			var tdIP = $(tr).find("td:eq(0)").html();
 			var tdPort = $(tr).find("td:eq(1)").html();
 			
-			//console.log("IP: " + tdIP + ", Port: " + tdPort);
+			//новая вкладка приватного чата.
+			var newTab = '<li id="tabPrivateChat_' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
+							+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + tdIP + ':' + tdPort 
+							+ '] <span class="badge alert-success" id="badge' + toId + '" style="visibility:hidden">0</span></a>'
+							+ '<span id="closeTab" class="glyphicon glyphicon-remove"></span></li>';
+			$(newTab).appendTo('#tabs');
 			
-			$('<li id="tabPrivateChat_' + toId +'"><a data-toggle="tab" href="#privateChat_' + toId + '">'
-				+ '<span class="glyphicon glyphicon-sunglasses"></span> Приватный чат [' + tdIP + ':' + tdPort 
-				+ '] <span class="badge alert-success" id="badge' + toId + '" style="visibility:hidden">0</span></a><span id="closeTab" class="glyphicon glyphicon-remove"></span></li>').appendTo('#tabs');
-			
+			//таблица приватных твитов.
 			var chatTable = '<table id="privateTweets_' + toId + '" class="table table-hover" width="100%">' +
-						'<colgroup>' +
-							'<col style="width:10%">' +
-							'<col style="width:20%">' +
-							'<col style="width:70%">' +
-						'</colgroup>' +
-					'</table>';
+								'<colgroup>' +
+									'<col style="width:10%">' +
+									'<col style="width:20%">' +
+									'<col style="width:70%">' +
+								'</colgroup>' +
+							'</table>';
 			
-			$('<div class="tab-pane fade" id="privateChat_' + toId + '">'
-				+ '<h3> Приватный чат [' + tdIP + ':' + tdPort + ']</h3>' + chatTable + '</div>').appendTo('.tab-content');
+			//содержимое вкладки.
+			var contentTab = '<div class="tab-pane fade" id="privateChat_' + toId + '">'
+								+ '<h3> Приватный чат [' + tdIP + ':' + tdPort + ']</h3>' + chatTable + '</div>';	
+			$(contentTab).appendTo('.tab-content');
 			
+			//сделать вкладку активной.
 			if (show)
 				$('#tabs a:last').tab('show');
 				
-		unreadMessage.set(toId, 0);
-
-	  }
+			unreadMessage.set(toId, 0);
+		}
 	  
-	  function isActivePrivatChatTab()
+		//проверка активена ли вкладка одного из приватных чатов.
+		function isActivePrivatChatTab()
 		{
 			var activeTab = getActiveTab();
 			if (activeTab != 'newTweets' && activeTab != 'paneTableOnline')
@@ -461,145 +449,137 @@
 				return false;
 		}
 		
+		//получить название активной вкладки.
 		function getActiveTab()
 		{
 			var activeTab = $('.nav-tabs .active > a').attr('href').substring(1);
-			console.log('Active nav-tab: ' + activeTab);
 			return activeTab;
 		}
 		
 
-	  $(document).ready(function()
-	  {
-		//отправление твита.
-		$('#twit').submit(function(evt)
+		$(document).ready(function()
 		{
-			evt.preventDefault();
-			var message = $('#message').val();
-			
-			if (message.length > 0)
+			//событие отправки твита.
+			$('#twit').submit(function(evt)
 			{
-				var isPrivateTab = isActivePrivatChatTab();
+				evt.preventDefault();
+				var message = $('#message').val();
 				
-				if (isPrivateTab)
+				if (message.length > 0)
 				{
-					var activeTab = getActiveTab();
-					var toId = String(activeTab).split('_')[1];
-
-					if (chats.has(toId))
+					var isPrivateTab = isActivePrivatChatTab();
+					
+					//приватный твит.
+					if (isPrivateTab)
 					{
-						var addr = chats.get(toId);
-						console.log("ADDR: " + addr);
-						
-						eb.send(addr, message);
+						var activeTab = getActiveTab();
+						var toId = String(activeTab).split('_')[1];
+
+						//отправка приватного твита (через сервер).
+						if (chats.has(toId))
+						{
+							var addr = chats.get(toId);
+							eb.send(addr, message);
+						}
+						else
+							console.log('Private chat id #' + toId + ' has not.');
 					}
 					else
-						console.log('Chat id #' + toId + ' has not.');
-				}
-				else
-				{	
-					var activeTab = getActiveTab();
-					if (activeTab == 'paneTableOnline')
 					{
-						console.log("Open paneTableOnline");
-						$('#tabs a[href="#newTweets"]').tab('show');
-						//$('a[data-toggle="tab"]:first').trigger("shown.bs.tab");
+						//твит.
+						var activeTab = getActiveTab();
+						if (activeTab == 'paneTableOnline')
+							$('#tabs a[href="#newTweets"]').tab('show');
+						
+						eb.publish("chat.to.server", message);
 					}
 					
-					eb.publish("chat.to.server", message);
+					$('#message').val("").focus();
+					countChar();
 				}
-				
-				$('#message').val("").focus();
-				countChar();
-			}
-		});
+			});
 		
-		//переключение вкладок.
-		$(document).on( 'shown.bs.tab', 'a[data-toggle="tab"]', function (e) 
-		{
-			var tab = String(e.target).split('#')[1];
-			//console.log('TAB: ' + tab);
-			//tabPrivateChat_
-			var tabText = $('#' + tab).text();
-			console.log("Text of tab " + tab + " is: " + tabText);
-			
-			if (tab != 'newTweets' && tab != 'paneTableOnline')
+			//переключение вкладок.
+			$(document).on( 'shown.bs.tab', 'a[data-toggle="tab"]', function (e) 
 			{
-				//TODO: поменять цвет.
-				document.getElementById("onlineEye").style.color = "#d9534f";
-				document.getElementById("online").style.color = "#d9534f";
-				var addr = $('#tabPrivateChat_' + tab.split('_')[1]).text();
-				addr = addr.substring(addr.indexOf('[') + 1, addr.indexOf(']'));
-				$('#online').text(addr);
-			}
-			else
-			{
-				document.getElementById("onlineEye").style.color = "#555";
-				document.getElementById("online").style.color = "#555";
-				$('#online').text(online);
-			}
-			
-			if (tab != 'paneTableOnline')
-			{
-				if (tab == 'newTweets')
+				var tab = String(e.target).split('#')[1];
+				var tabText = $('#' + tab).text();
+				var isPrivateChat = isActivePrivatChatTab();
+				
+				//реагирование счетчика на переключение вкладок.
+				if (isPrivateChat)
 				{
-					var val = unreadMessage.get('0');
-					unreadMessage.set('0', 0);
-					$("#badge0").text(0);
-					//$("#badge0").disabled = true;
-					document.getElementById("badge0").style.visibility = "hidden";
+					document.getElementById("onlineEye").style.color = "#d9534f";
+					document.getElementById("online").style.color = "#d9534f";
+					var addr = $('#tabPrivateChat_' + tab.split('_')[1]).text();
+					addr = addr.substring(addr.indexOf('[') + 1, addr.indexOf(']'));
+					$('#online').text(addr);
 				}
 				else
 				{
-					var idTab = tab.split('_')[1];
-					var val = unreadMessage.get(idTab);
-					unreadMessage.set(idTab, 0);
-					$("#badge" + idTab).text(0);
-					//$("#badge" + idTab).disabled = true;
-					document.getElementById("badge" + idTab).style.visibility = "hidden";
+					document.getElementById("onlineEye").style.color = "#555";
+					document.getElementById("online").style.color = "#555";
+					$('#online').text(online);
 				}
-			}
-		});
+				
+				//скрытие бейджа непрочитанных сообщений на вкладке.
+				if (tab != 'paneTableOnline')
+				{
+					//активна вкладка твитов.
+					if (tab == 'newTweets')
+					{
+						var val = unreadMessage.get('0');
+						unreadMessage.set('0', 0);
+						$("#badge0").text(0);
+						document.getElementById("badge0").style.visibility = "hidden";
+					}
+					else
+					{
+						//активна вкладка приватных твитов.
+						var idTab = tab.split('_')[1];
+						var val = unreadMessage.get(idTab);
+						unreadMessage.set(idTab, 0);
+						$("#badge" + idTab).text(0);
+						document.getElementById("badge" + idTab).style.visibility = "hidden";
+					}
+				}
+			});
 		
-		//закрыть вкладку.
-		$(".nav-tabs").on("click", "#closeTab", function () 
-		{
-			var anchor = $(this).siblings('a');
-			$(anchor.attr('href')).remove();
-			$(this).parent().remove();
-			$(".nav-tabs li").children('a').first().click();
+			//обработка закрытия вкладки.
+			$(".nav-tabs").on("click", "#closeTab", function () 
+			{
+				var anchor = $(this).siblings('a');
+				$(anchor.attr('href')).remove();
+				$(this).parent().remove();
+				$(".nav-tabs li").children('a').first().click();
+			});
 		});
-		
-	  });
 	  
-	  	  
-	  function countChar() 
-	  {
-		var len = $('#message').val().length;
-        if (len > 140) 
+	  	//счетчик введенных символов.
+		function countChar() 
 		{
-		  var msg = $('#message').val().substring(0, 140);
-		  $('#message').val(msg);
-        } 
-		else 
-		{
-		  var per = 100 / 140 * len;
-          $('#charNum').text(140 - len);
+			var len = $('#message').val().length;
+			if (len > 140) 
+			{
+				var msg = $('#message').val().substring(0, 140);
+				$('#message').val(msg);
+			} 
+			else 
+			{
+				var per = 100 / 140 * len;
+				$('#charNum').text(140 - len);
 		  
+				var per1 = (per < 20) ? per : 20;
+				var per2 = (per < 80) ? ((per1 == 20) ? (per - 20) : 0) : 60;
+				var per3 = (per > 80) ? (per - 80) : 0;
 		  
-		  var per1 = (per < 20) ? per : 20;
-		  var per2 = (per < 80) ? ((per1 == 20) ? (per - 20) : 0) : 60;
-		  var per3 = (per > 80) ? (per - 80) : 0;
-		  
-			
-		  $('#progress-bar1').css('width', per1+'%').attr('aria-valuenow', per1);
-		  $('#progress-bar2').css('width', per2+'%').attr('aria-valuenow', per2);
-		  $('#progress-bar3').css('width', per3+'%').attr('aria-valuenow', per3);
-        }
-      };
+				$('#progress-bar1').css('width', per1+'%').attr('aria-valuenow', per1);
+				$('#progress-bar2').css('width', per2+'%').attr('aria-valuenow', per2);
+				$('#progress-bar3').css('width', per3+'%').attr('aria-valuenow', per3);
+			}
+		};
 
 	</script>
-
 </head>
 
 <body>
@@ -614,10 +594,12 @@
 				<span class="input-group-addon" id="online">
 					<span class="glyphicon glyphicon-option-horizontal"></span>
 				</span>
-			  <input type="text" maxlength="141" autocomplete="off" class="form-control" placeholder="Что нового?" id="message" aria-describedby="sizing-addon1" onkeyup="countChar()"/>
+			  <input type="text" maxlength="141" autocomplete="off" class="form-control" 
+					placeholder="Что нового?" id="message" aria-describedby="sizing-addon1" onkeyup="countChar()"/>
 			  <span class="input-group-btn">
 				<button class="btn btn-success" type="submit">
-				<span class="glyphicon glyphicon-send"></span></button>
+					<span class="glyphicon glyphicon-send"></span>
+				</button>
 			  </span>
             </div>
         </fieldset>
@@ -625,30 +607,35 @@
 		<h3 id="charNum">140</h3>
 		
 		<div class="progress">
-		  <div id="progress-bar1" class="progress-bar progress-bar-success active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="20" style="width: 0%">
+		  <div id="progress-bar1" class="progress-bar progress-bar-success active" role="progressbar" 
+				aria-valuenow="0" aria-valuemin="0" aria-valuemax="20" style="width: 0%">
 			<span class="sr-only">0% Complete</span>
 			</div>
 			
-			<div id="progress-bar2" class="progress-bar progress-bar-warning active" role="progressbar" aria-valuenow="20" aria-valuemin="20" aria-valuemax="80" style="width: 0%">
-			<span class="sr-only">20% Complete</span>
+			<div id="progress-bar2" class="progress-bar progress-bar-warning active" role="progressbar" 
+				aria-valuenow="20" aria-valuemin="20" aria-valuemax="80" style="width: 0%">
+				<span class="sr-only">20% Complete</span>
 			</div>
-			<div id="progress-bar3" class="progress-bar progress-bar-danger active" role="progressbar" aria-valuenow="80" aria-valuemin="80" aria-valuemax="100" style="width: 0%">
-			<span class="sr-only">80% Complete</span>
-		  </div>
+			<div id="progress-bar3" class="progress-bar progress-bar-danger active" role="progressbar" 
+				aria-valuenow="80" aria-valuemin="80" aria-valuemax="100" style="width: 0%">
+				<span class="sr-only">80% Complete</span>
+			</div>
 		</div>
 		
 		
-		<!--br-->
-		<!--div class="panel panel-success"-->
 		<div class="container panel-success">
-		  <!--div class="panel-heading"><h3>Новые твиты</h3></div-->
 			<ul class="nav nav-tabs" id="tabs">
-				<li class="active" id="tabNewTweets"><a data-toggle="tab" href="#newTweets">
-					<span class="glyphicon glyphicon-fire"></span>
-					 Новые твиты <span class="badge alert-success" id="badge0" style="visibility:hidden">0</span></a></li>
-				<li id="tabPaneTableOnline"><a data-toggle="tab" href="#paneTableOnline">
-					<span class="glyphicon glyphicon-user"></span>
-					 Онлайн</a></li>
+				<li class="active" id="tabNewTweets">
+					<a data-toggle="tab" href="#newTweets">
+						<span class="glyphicon glyphicon-fire"></span> Новые твиты 
+						<span class="badge alert-success" id="badge0" style="visibility:hidden">0</span>
+					</a>
+				</li>
+				<li id="tabPaneTableOnline">
+					<a data-toggle="tab" href="#paneTableOnline">
+						<span class="glyphicon glyphicon-user"></span> Онлайн
+					</a>
+				</li>
 			</ul>
 
 			<div class="tab-content">
@@ -677,7 +664,6 @@
 				</div>
 			</div>
 		</div>
-
     </form>
 </div>
 </body>

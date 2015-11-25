@@ -130,7 +130,8 @@ public class CServer extends AbstractVerticle
                 .addOutboundPermitted(new PermittedOptions().setAddressRegex("com\\.chat\\." + uuidRegex))
                 .addOutboundPermitted(new PermittedOptions().setAddress("data.on.chat"));
 
-        mHandler.bridge(opts, event -> {
+        mHandler.bridge(opts, event ->
+        {
             if (event.type() == PUBLISH)
                 publishEvent(event);
 
@@ -138,130 +139,16 @@ public class CServer extends AbstractVerticle
                 sendEvent(event);
 
             if (event.type() == REGISTER)
-            //if (event.type() == SOCKET_CREATED)
                 registerEvent(event);
 
-
-            //if (event.type() == UNREGISTER)
             if (event.type() == SOCKET_CLOSED)
-                unregisterEvent(event);
+                closeEvent(event);
 
             event.complete(true);
         });
     }
 
-    private boolean sendEvent(BridgeEvent event)
-    {
-        log.info("Send event called, message: " + event.rawMessage().toString());
-
-        String eventAddr = event.rawMessage().getString("address");
-        String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-
-        //log.info("Event address: " + eventAddr);
-
-        //создание чата.
-        if (Pattern.compile("com\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
-        {
-            String uuidClient = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
-            String json = event.rawMessage().getString("body");
-            //log.info("JSON: " + json);
-            CChatInfo chatInfo = new Gson().fromJson(json, CChatInfo.class);
-            chatInfo.genAddress();
-
-            if (chatInfo.getFromId() == 0 || chatInfo.getToId() == 0)
-            {
-                log.info("FromId=" + chatInfo.getFromId() + ", ToId=" + chatInfo.getToId());
-                return false;
-            }
-
-            //исключить возможность хака.
-            String ip = event.socket().remoteAddress().host();
-            int port = event.socket().remoteAddress().port();
-            //if (!CClient.getClient(info.getFromId()).getUuid().toString().equals(uuidClient))
-            if (CClient.getClient(ip, port).getId() != chatInfo.getFromId())
-            {
-                log.info("Hacking");
-                return false;
-            }
-
-            //CChatInfo thinChat = new CChatInfo(chatInfo.getFromId(), chatInfo.getToId());
-            log.info("Chat Info: " + chatInfo.toString());
-            //CClient fromClient = CClient.getClient(info.getFromId());
-            int index = CClient.indexPrivateChat(chatInfo);
-            if (index == -1) CClient.addPrivateChat(chatInfo);
-            else chatInfo = CClient.getPrivateChat(index); //unique uuid.
-
-            log.info("Chat Info index: " + index);
-            log.info("Chat Info after: " + chatInfo.toString());
-
-
-            CClient toClient = CClient.getClient(chatInfo.getToId());
-
-            //Map<String, Object> response = new TreeMap<String, Object>();
-            //response.put("thrown", true);
-            //response.put("chat", chatInfo);
-
-            String fromIdAddress = CClient.getClient(chatInfo.getFromId()).getUuid().toString();
-            String toIdAddress = CClient.getClient(chatInfo.getToId()).getUuid().toString();
-
-            log.info("Send chat info to: com.chat." + fromIdAddress + ", message: " + new Gson().toJson(chatInfo));
-            log.info("Send chat info to: com.chat." + toIdAddress + ", message: " + new Gson().toJson(chatInfo));
-
-            vertx.eventBus().send("com.chat." + fromIdAddress, new Gson().toJson(chatInfo));
-            vertx.eventBus().send("com.chat." + toIdAddress, new Gson().toJson(chatInfo));
-
-
-            /*
-            vertx.eventBus().send("com.chat." + uuidClient, new Gson().toJson(response));
-            //log.info("Send message to: com.chat." + uuidClient + "; Response: " + new Gson().toJson(response));
-            //response.put("thrown", false);
-            vertx.eventBus().send("com.chat." + toClient.getUuid(), new Gson().toJson(response));
-            //log.info("Send message to: com.chat." + toClient.getUuid() + "; Response: " + new Gson().toJson(response));
-            */
-            return true;
-        }
-
-        //отправление сообщения в приватный чат.
-        //if (eventAddr.startsWith("private\\.server\\." + uuidRegEx))
-        if (Pattern.compile("private\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
-        {
-            //TODO: мб добавить проверку uuid, от хака.
-            String uuidAddress = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
-            String message = event.rawMessage().getString("body");
-            //log.info("Get Message: " + message);
-            if (!verifyMessage(message))
-                return false;
-
-            String ip = event.socket().remoteAddress().host();
-            int port = event.socket().remoteAddress().port();
-
-            CClient fromClient = CClient.getClient(ip, port);
-
-            CChatInfo chat = CClient.getChatByAddress(uuidAddress);
-            if (chat == null)
-            {
-                log.info("There is no a chat with the address: " + uuidAddress);
-                return false;
-            }
-
-            String time = Calendar.getInstance().getTime().toString();
-
-            Map<String, Object> parms = new TreeMap<String, Object>();
-            parms.put("type", "send");
-            parms.put("time", time);
-            parms.put("host", ip);
-            parms.put("port", port);
-            parms.put("message", message);
-            parms.put("toId", chat.getToId());
-            parms.put("fromId", chat.getFromId());
-
-            vertx.eventBus().publish("private.chat." + uuidAddress, new Gson().toJson(parms));
-            return true;
-        }
-
-        return false;
-    }
-
+    //обработчик публичных твитов.
     protected boolean publishEvent(BridgeEvent event)
     {
         if (event.rawMessage().getString("address").equals("chat.to.server"))
@@ -270,115 +157,252 @@ public class CServer extends AbstractVerticle
             if (!verifyMessage(message))
                 return false;
 
-            String ip = event.socket().remoteAddress().host();
+            String host = event.socket().remoteAddress().host();
             int port = event.socket().remoteAddress().port();
 
-            String time = Calendar.getInstance().getTime().toString();
-
-            Map<String, Object> parms = new TreeMap<String, Object>();
-            parms.put("type", "publish");
-            parms.put("time", time);
-            parms.put("host", ip);
-            parms.put("port", port);
-            parms.put("message", message);
-
-            log.debug("Publish, host: " + ip + ", port: " + port);
-
-            vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
+            Map<String, Object> publicNotice = createPublicNotice(host, port, message);
+            vertx.eventBus().publish("chat.to.client", new Gson().toJson(publicNotice));
             return true;
         }
         else
             return false;
     }
 
-    protected void registerEvent(BridgeEvent event)
+    //события с приватными чатами.
+    private boolean sendEvent(BridgeEvent event)
+    {
+        log.info("Call Send Event handler, event is: " + event.rawMessage());
+
+        String eventAddr = event.rawMessage().getString("address");
+        String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+        //создание приватного чата.
+        if (Pattern.compile("com\\.server\\." + uuidRegEx).matcher(eventAddr).matches())
+            return createPrivateChat(event);
+
+        //отправление сообщения в приватный чат.
+        return Pattern.compile("private\\.server\\." + uuidRegEx).matcher(eventAddr).matches()
+                && privateTweet(event);
+
+    }
+
+    //обработчик событий создания сессии.
+    private void registerEvent(BridgeEvent event)
     {
         if (event.rawMessage().getString("address").equals("chat.to.client"))
-            new Thread(new Runnable()
+            new Thread(() ->
             {
-                @Override
-                public void run()
-                {
-                    String host = event.socket().remoteAddress().host();
-                    int port = event.socket().remoteAddress().port();
-                    Date time = Calendar.getInstance().getTime();
+                String host = event.socket().remoteAddress().host();
+                int port = event.socket().remoteAddress().port();
+                Date time = Calendar.getInstance().getTime();
 
-                    CClient client = new CClient(host, port, time);
-                    Map<String, Object> parms = new HashMap<String, Object>(3);
+                CClient client = new CClient(host, port, time);
 
-                    parms.put("type", "register");
-                    parms.put("client", client);
-                    parms.put("uuid", client.getUuid());
-                    parms.put("online", CClient.getOnline());
+                Map<String, Object> registerNotice = createRegisterNotice(client);
+                vertx.eventBus().publish("chat.to.client", new Gson().toJson(registerNotice));
 
-                    //log.info("JSON PARMS: " + new Gson().toJson(parms));
-                    vertx.eventBus().publish("chat.to.client", new Gson().toJson(parms));
-
-
-                    Map<String, Object> parms2 = new HashMap<String, Object>(3);
-                    parms2.put("type", "send");
-                    parms2.put("client", client);
-                    parms2.put("clients", CClient.getOnlineList());
-
-                    //log.info("JSON PARMS2: " + new Gson().toJson(parms2));
-                    vertx.eventBus().send("data.on.chat", new Gson().toJson(parms2));
-                    //TODO: заменить data.on.chat на con.chat.UUID.
-                }
+                Map<String, Object> dataNotice = createDataNotice(client);
+                vertx.eventBus().send("data.on.chat", new Gson().toJson(dataNotice));
             }).start();
     }
 
-    protected void unregisterEvent(BridgeEvent event)
+    //обработчик событий завершения сессии.
+    private void closeEvent(BridgeEvent event)
     {
         if (event.rawMessage() != null)
-        {
-            log.info("RawMessage: " + event.rawMessage());
-        }
+            log.info("Call Close Event handler, event is: " + event.rawMessage());
         else
-            log.info("Event is null");
+            log.info("Call Close Event handler, event is NULL");
 
-        //if (event.rawMessage() == null)
-            new Thread(new Runnable()
+            new Thread(() ->
             {
-                @Override
-                public void run()
+                String host = event.socket().remoteAddress().host();
+                int port = event.socket().remoteAddress().port();
+
+                CClient client = CClient.unregisterClient(host, port);
+                if (client == null) //клиент не был зарегестрирован.
                 {
-                    String host = event.socket().remoteAddress().host();
-                    int port = event.socket().remoteAddress().port();
-
-                    CClient client = CClient.unregisterClient(host, port);
-                    if (client == null)
-                        return;
-
-                    List<String> closedAddress = CClient.closeChat(client.getId());
-                    String time = Calendar.getInstance().getTime().toString();
-
-                    for (String address : closedAddress)
-                    {
-                        Map<String, Object> notices = new TreeMap<String, Object>();
-                        notices.put("type", "unregister");
-                        notices.put("time", time);
-                        notices.put("host", host);
-                        notices.put("port", port);
-                        //notices.put("message", "Собеседник покинул чат");
-                        notices.put("toId", client.getId());
-                        vertx.eventBus().publish("private.chat." + address, new Gson().toJson(notices));
-                    }
-
-                    Map<String, Object> notice = new TreeMap<String, Object>();
-                    notice.put("type", "unregister");
-                    notice.put("online", CClient.getOnline());
-                    notice.put("client", client);
-                    log.info("Unregister handler: " + client.toString());
-                    vertx.eventBus().publish("chat.to.client", new Gson().toJson(notice));
+                    log.warn("Client with the address [" + host + ":" + port + "] has not been registered.");
+                    return;
                 }
+
+                //список закрывшихся приватных чатов.
+                List<UUID> closedAddress = CClient.closeChat(client.getId());
+                //информирование в приватные чаты, что собеседник покинул чат.
+                for (UUID address : closedAddress)
+                {
+                    Map<String, Object> closedNotice = createClosedNotice(client, host, port);
+                    vertx.eventBus().send("private.chat." + address.toString(), new Gson().toJson(closedNotice));
+                }
+
+                //информирование в чат.
+                Map<String, Object> infoNotice = createInfoNotice(client);
+                vertx.eventBus().publish("chat.to.client", new Gson().toJson(infoNotice));
             }).start();
     }
 
-    protected boolean verifyMessage(String msg)
+    //верификация принятого сообщения.
+    private boolean verifyMessage(String msg)
     {
-        if (msg.length() < 1 || msg.length() > 140)
+        return  msg.length() > 0
+                && msg.length() <= 140;
+    }
+
+    //создание приватного чата.
+    private boolean createPrivateChat(BridgeEvent event)
+    {
+        String jMsg = event.rawMessage().getString("body");
+        CChatInfo chatInfo = new Gson().fromJson(jMsg, CChatInfo.class);
+        chatInfo.genAddress();
+
+        if (chatInfo.getFromId() == 0 || chatInfo.getToId() == 0)
+        {
+            log.warn("FromId=" + chatInfo.getFromId() + ", ToId=" + chatInfo.getToId());
             return false;
-        else
-            return true;
+        }
+
+        //исключить возможность хака.
+        String ip = event.socket().remoteAddress().host();
+        int port = event.socket().remoteAddress().port();
+        CClient fromClient = CClient.getClient(ip, port);
+        if (fromClient != null && fromClient.getId() != chatInfo.getFromId())
+        {
+            log.warn("Server FromID differs from the received FromID.");
+            return false;
+        }
+
+        int index = CClient.indexPrivateChat(chatInfo);
+        if (index == -1) CClient.addPrivateChat(chatInfo);
+        else chatInfo = CClient.getPrivateChat(index); //уникальный uuid.
+
+        if (chatInfo == null)
+        {
+            log.warn("Chat has been closed.");
+            return false;
+        }
+
+        CClient fromIdClient = CClient.getClient(chatInfo.getFromId());
+        CClient toIdClient = CClient.getClient(chatInfo.getToId());
+        if (fromIdClient == null || toIdClient == null)
+        {
+            log.warn("FromId Client or ToId Client isn't registered.");
+            return false;
+        }
+
+        String fromIdAddress = fromIdClient.getUuid().toString();
+        String toIdAddress = toIdClient.getUuid().toString();
+
+        log.debug("Send chat info to: com.chat." + fromIdAddress + ", message: " + new Gson().toJson(chatInfo));
+        log.debug("Send chat info to: com.chat." + toIdAddress + ", message: " + new Gson().toJson(chatInfo));
+
+        vertx.eventBus().send("com.chat." + fromIdAddress, new Gson().toJson(chatInfo));
+        vertx.eventBus().send("com.chat." + toIdAddress, new Gson().toJson(chatInfo));
+
+        return true;
+    }
+
+    //приватный твит.
+    private boolean privateTweet(BridgeEvent event)
+    {
+        String eventAddr = event.rawMessage().getString("address");
+        String uuidAddress = eventAddr.substring(eventAddr.lastIndexOf('.') + 1);
+        String message = event.rawMessage().getString("body");
+
+        if (!verifyMessage(message))
+        {
+            log.warn("The message isn't verify.");
+            return false;
+        }
+
+        String host = event.socket().remoteAddress().host();
+        int port = event.socket().remoteAddress().port();
+        CChatInfo chatInfo = CClient.getChatByUuid(uuidAddress);
+
+        //отсутствует приватный чат с указанным адресом.
+        if (chatInfo == null)
+        {
+            log.info("There is no private chat with the specified address: " + uuidAddress);
+            return false;
+        }
+
+        Map<String, Object> privateTweetNotice = createPrivateTweetNotice(chatInfo, host, port, message);
+        vertx.eventBus().publish("private.chat." + uuidAddress, new Gson().toJson(privateTweetNotice));
+
+        return true;
+    }
+
+    //создание уведомления публикации твита.
+    private Map<String, Object> createPublicNotice(String host, int port, String message)
+    {
+        Date time = Calendar.getInstance().getTime();
+
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "publish");
+        notice.put("time", time.toString());
+        notice.put("host", host);
+        notice.put("port", port);
+        notice.put("message", message);
+        return notice;
+    }
+
+    //создание уведомления отправления приватного твита.
+    private Map<String, Object> createPrivateTweetNotice(CChatInfo chatInfo, String host, int port, String message)
+    {
+        Date time = Calendar.getInstance().getTime();
+
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "send");
+        notice.put("time", time.toString());
+        notice.put("host", host);
+        notice.put("port", port);
+        notice.put("message", message);
+        notice.put("toId", chatInfo.getToId());
+        notice.put("fromId", chatInfo.getFromId());
+        return notice;
+    }
+
+    //создание уведомления о регистрации.
+    private Map<String, Object> createRegisterNotice(CClient client)
+    {
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "register");
+        notice.put("client", client);
+        notice.put("uuid", client.getUuid().toString());
+        notice.put("online", CClient.getOnline());
+        return notice;
+    }
+
+    //создание уведомления с данными.
+    private Map<String, Object> createDataNotice(CClient client)
+    {
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "send");
+        notice.put("client", client);
+        notice.put("clients", CClient.getOnlineList());
+        return notice;
+    }
+
+    //создание уведомления о закрытии чата.
+    private Map<String, Object> createClosedNotice(CClient client, String host, int port)
+    {
+        Date time = Calendar.getInstance().getTime();
+
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "close");
+        notice.put("time", time.toString());
+        notice.put("host", host);
+        notice.put("port", port);
+        notice.put("toId", client.getId());
+        return notice;
+    }
+
+    //создание уведомления в чат.
+    private Map<String, Object> createInfoNotice(CClient client)
+    {
+        Map<String, Object> notice = new TreeMap<>();
+        notice.put("type", "close");
+        notice.put("online", CClient.getOnline());
+        notice.put("client", client);
+        return notice;
     }
 }

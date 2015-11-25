@@ -4,20 +4,20 @@ public class CChatInfo
 {
     private final int fromId;
     private final int toId;
-    private String address;
+    private UUID uuid;
 
-    public CChatInfo(int fromId, int toId, String address)
+    public CChatInfo(int fromId, int toId, UUID uuid)
     {
         this.fromId = fromId;
         this.toId = toId;
-        this.address = address;
+        this.uuid = uuid;
     }
 
     public CChatInfo(int fromId, int toId)
     {
         this.fromId = fromId;
         this.toId = toId;
-        this.address = UUID.randomUUID().toString();
+        this.uuid = UUID.randomUUID();
     }
 
     @Override
@@ -34,33 +34,30 @@ public class CChatInfo
 
         CChatInfo c = (CChatInfo) obj;
 
-        if ((this.fromId == c.fromId && this.toId == c.toId
-            || this.fromId == c.toId && this.toId == c.fromId)
-                && this.fromId != this.toId)
-            //&& this.address.equals(c.address))
-            return true;
-        else return false;
+        return (this.fromId == c.fromId && this.toId == c.toId
+                || this.fromId == c.toId && this.toId == c.fromId)
+                && this.fromId != this.toId;
     }
 
     @Override
     public int hashCode()
     {
-        return fromId ^ toId;// ^ address.hashCode();
+        return fromId ^ toId;
     }
 
-    public void setAddress(String address)
+    @Override
+    public String toString()
     {
-        this.address = address;
+        return "CChatInfo{" +
+                "fromId=" + fromId +
+                ", toId=" + toId +
+                ", uuid='" + uuid + '\'' +
+                '}';
     }
 
-    public void genAddress()
+    public UUID getUuid()
     {
-        this.address = UUID.randomUUID().toString();
-    }
-
-    public String getAddress()
-    {
-        return address;
+        return uuid;
     }
 
     public int getFromId()
@@ -73,13 +70,8 @@ public class CChatInfo
         return toId;
     }
 
-    @Override
-    public String toString()
+    public void genAddress()
     {
-        return "CChatInfo{" +
-                "fromId=" + fromId +
-                ", toId=" + toId +
-                ", address='" + address + '\'' +
-                '}';
+        this.uuid = UUID.randomUUID();
     }
 }

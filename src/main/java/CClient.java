@@ -7,11 +7,9 @@ public class CClient
 {
     private static AtomicInteger count = new AtomicInteger(0);
     private static AtomicInteger online = new AtomicInteger(0);
-    private static Map<Integer, CClient> clients = new ConcurrentHashMap<Integer, CClient>();
-    private static Map<String, Integer> addrMap = new ConcurrentHashMap<String, Integer>();
-    private static CopyOnWriteArrayList<CChatInfo> privateChats = new CopyOnWriteArrayList<CChatInfo>();
-
-    //public final transient CPrivateChat privateChat;
+    private static Map<Integer, CClient> clients = new ConcurrentHashMap<>();
+    private static Map<String, Integer> addrMap = new ConcurrentHashMap<>();
+    private static CopyOnWriteArrayList<CChatInfo> privateChats = new CopyOnWriteArrayList<>();
 
     private final int id;
     private final String host;
@@ -36,94 +34,6 @@ public class CClient
         clients.put(id, this);
     }
 
-    public static int indexPrivateChat(CChatInfo chat)
-    {
-        //return privateChats.contains(chat);
-        return privateChats.indexOf(chat);
-    }
-
-    public static boolean addPrivateChat(CChatInfo chat)
-    {
-        if (privateChats.contains(chat))
-            return false;
-
-        return privateChats.add(chat);
-    }
-
-    public static CChatInfo getPrivateChat(int index)
-    {
-        return privateChats.get(index);
-    }
-
-    public static CChatInfo getChatByAddress(String address)
-    {
-        for(CChatInfo chat : privateChats)
-        {
-            if (chat.getAddress().equals(address))
-                return chat;
-        }
-
-        return null;
-    }
-
-    public static List<String> closeChat(int id)
-    {
-        //TODO: реализовать семафор.
-        List<CChatInfo> removeChats = new LinkedList<CChatInfo>();
-        List<String> chatsAddress = new LinkedList<String>();
-
-        for(CChatInfo chat : privateChats)
-        {
-            if (chat.getFromId() == id || chat.getToId() == id)
-            {
-                removeChats.add(chat);
-                chatsAddress.add(chat.getAddress());
-            }
-        }
-
-        for (CChatInfo removeChat : removeChats)
-        {
-            if (privateChats.contains(removeChat))
-                privateChats.remove(removeChat);
-        }
-
-        return chatsAddress;
-    }
-
-    private int getIdByAddress(String host, int port)
-    {
-        String addr = host.concat(":").concat(String.valueOf(port));
-        if (addrMap.containsKey(addr))
-            return addrMap.get(addr);
-        else return -1;
-    }
-
-    public static CClient unregisterClient(String host, int port)
-    {
-        String addr = host.concat(":").concat(String.valueOf(port));
-        if (addrMap.containsKey(addr))
-        {
-            int id = addrMap.get(addr);
-            CClient unregClient = clients.remove(id);
-            addrMap.remove(addr);
-            online.decrementAndGet();
-            return unregClient;
-        }
-
-        return null;
-    }
-
-    public static int getOnline()
-    {
-        return online.get();
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return host.hashCode() ^ port;
-    }
-
     @Override
     public boolean equals(Object obj)
     {
@@ -137,20 +47,18 @@ public class CClient
             return false;
 
         CClient c = (CClient) obj;
-        if (this.id == c.id
+
+        return this.id == c.id
                 && this.host.equals(c.host)
                 && this.port == c.port
                 && this.logontime == c.logontime
-                && this.uuid == c.uuid)
-            return true;
-
-        return false;
+                && this.uuid == c.uuid;
     }
 
-
-    public static Collection<CClient> getOnlineList()
+    @Override
+    public int hashCode()
     {
-        return clients.values();
+        return id;
     }
 
     @Override
@@ -165,16 +73,10 @@ public class CClient
                 '}';
     }
 
-    public static CClient getClient(String host, int port)
-    {
-        String addr = host.concat(":").concat(String.valueOf(port));
-        if (addrMap.containsKey(addr))
-        {
-            int id = addrMap.get(addr);
-            return clients.get(id);
-        }
 
-        return null;
+    public int getId()
+    {
+        return id;
     }
 
     public UUID getUuid()
@@ -182,26 +84,91 @@ public class CClient
         return uuid;
     }
 
-    public int getId()
+
+    public static int getOnline()
     {
-        return id;
+        return online.get();
+    }
+
+    public static CClient getClient(String host, int port)
+    {
+        int id = getIdByAddress(host, port);
+        return getClient(id);
     }
 
     public static CClient getClient(int id)
     {
-        if (clients.containsKey(id))
-            return clients.get(id);
-        else
+        return clients.get(id);
+    }
+
+    public static CChatInfo getPrivateChat(int index)
+    {
+        if (index < 0 || index >= privateChats.size())
             return null;
+        return privateChats.get(index);
     }
 
-    public String getHost()
+    public static CChatInfo getChatByUuid(String strUuid)
     {
-        return host;
+        UUID uuid = UUID.fromString(strUuid);
+        for(CChatInfo chat : privateChats)
+        {
+            if (chat.getUuid().equals(uuid))
+                return chat;
+        }
+
+        return null;
     }
 
-    public int getPort()
+    public static Collection<CClient> getOnlineList()
     {
-        return port;
+        return clients.values();
+    }
+
+    public static int indexPrivateChat(CChatInfo chat)
+    {
+        return privateChats.indexOf(chat);
+    }
+
+    public static boolean addPrivateChat(CChatInfo chat)
+    {
+        return privateChats.addIfAbsent(chat);
+    }
+
+    public static List<UUID> closeChat(int id)
+    {
+        List<CChatInfo> removeChats = new LinkedList<>();
+        List<UUID> chatsAddress = new LinkedList<>();
+
+        privateChats.stream().filter(chat -> chat.getFromId() == id || chat.getToId() == id).forEach(chat ->
+        {
+            removeChats.add(chat);
+            chatsAddress.add(chat.getUuid());
+        });
+
+        removeChats.stream().filter(privateChats::contains).forEach(privateChats::remove);
+
+        return chatsAddress;
+    }
+
+    public static CClient unregisterClient(String host, int port)
+    {
+        int id = getIdByAddress(host, port);
+        if (id == -1)
+            return null;
+
+        CClient unregClient = clients.remove(id);
+        addrMap.remove(host + ":" + port);
+        online.decrementAndGet();
+        return unregClient;
+    }
+
+
+    private static int getIdByAddress(String host, int port)
+    {
+        String addr = host + ":" + port;
+        if (addrMap.containsKey(addr))
+            return addrMap.get(addr);
+        else return -1;
     }
 }
