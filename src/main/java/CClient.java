@@ -23,13 +23,12 @@ public class CClient
         online.incrementAndGet();
         id = count.get();
         uuid = UUID.randomUUID();
-        //privateChat = new CPrivateChat(id);
 
         this.host = host;
         this.port = port;
         this.logontime = time.getTime();
 
-        String addr = host.concat(":").concat(String.valueOf(port));
+        String addr = host + ":" + port;
         addrMap.put(addr, id);
         clients.put(id, this);
     }

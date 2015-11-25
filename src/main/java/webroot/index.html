@@ -250,7 +250,10 @@
 				// и вкладка не открыта
 				// не оповещать.
 				if (event.type == "close")
+				{
+					eb.unregisterHandler(msg.address, privateChatProcessing);
 					return;
+				}
 				else //создать вкладку с новым чатом.
 					createTab(inId, false);
 			}
@@ -263,6 +266,7 @@
 				message = 'Собеседник покинул чат';
 				bgcolor = ' bgcolor="#f2dede"';
 				chats.delete(inId);
+				eb.unregisterHandler(msg.address, privateChatProcessing);
 			}
 			else
 				message = event.message;
