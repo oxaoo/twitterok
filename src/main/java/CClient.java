@@ -2,6 +2,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class CClient
 {
@@ -111,10 +112,7 @@ public class CClient
     {
         UUID uuid = UUID.fromString(strUuid);
         for(CChatInfo chat : privateChats)
-        {
-            if (chat.getUuid().equals(uuid))
-                return chat;
-        }
+            if (chat.getUuid().equals(uuid)) return chat;
 
         return null;
     }
@@ -139,13 +137,10 @@ public class CClient
         List<CChatInfo> removeChats = new LinkedList<>();
         List<UUID> chatsAddress = new LinkedList<>();
 
-        privateChats.stream().filter(chat -> chat.getFromId() == id || chat.getToId() == id).forEach(chat ->
-        {
-            removeChats.add(chat);
-            chatsAddress.add(chat.getUuid());
-        });
+        privateChats.stream().filter(chat ->
+                chat.getFromId() == id || chat.getToId() == id).forEach(removeChats::add);
 
-        removeChats.stream().filter(privateChats::contains).forEach(privateChats::remove);
+        chatsAddress.addAll(removeChats.stream().filter(privateChats::remove).map(CChatInfo::getUuid).collect(Collectors.toList()));
 
         return chatsAddress;
     }
@@ -166,8 +161,6 @@ public class CClient
     private static int getIdByAddress(String host, int port)
     {
         String addr = host + ":" + port;
-        if (addrMap.containsKey(addr))
-            return addrMap.get(addr);
-        else return -1;
+        return addrMap.getOrDefault(addr, -1);
     }
 }
