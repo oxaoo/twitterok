@@ -34,9 +34,8 @@ public class CChatInfo
 
         CChatInfo c = (CChatInfo) obj;
 
-        return (this.fromId == c.fromId && this.toId == c.toId
-                || this.fromId == c.toId && this.toId == c.fromId)
-                && this.fromId != this.toId;
+        return this.fromId == c.fromId && this.toId == c.toId
+                || this.fromId == c.toId && this.toId == c.fromId;
     }
 
     @Override

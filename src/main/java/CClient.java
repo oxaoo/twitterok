@@ -108,7 +108,7 @@ public class CClient
         return privateChats.get(index);
     }
 
-    public static CChatInfo getChatByUuid(String strUuid)
+    public static CChatInfo getPrivateChatByUuid(String strUuid)
     {
         UUID uuid = UUID.fromString(strUuid);
         for(CChatInfo chat : privateChats)
@@ -132,8 +132,11 @@ public class CClient
         return privateChats.addIfAbsent(chat);
     }
 
-    public static List<UUID> closeChat(int id)
+    public static List<UUID> closePrivateChat(int id)
     {
+        if (id < 1)
+            return Collections.emptyList();
+
         List<CChatInfo> removeChats = new LinkedList<>();
         List<UUID> chatsAddress = new LinkedList<>();
 

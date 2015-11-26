@@ -39,7 +39,7 @@ public class CServer extends AbstractVerticle
         handle();
     }
 
-    protected boolean deploy()
+    private boolean deploy()
     {
         int hostPort = getFreePort();
 
@@ -118,7 +118,7 @@ public class CServer extends AbstractVerticle
         return getFreePort(hostPort);
     }
 
-    protected void handle()
+    private void handle()
     {
         String uuidRegex = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
         BridgeOptions opts = new BridgeOptions()
@@ -149,9 +149,10 @@ public class CServer extends AbstractVerticle
     }
 
     //обработчик публичных твитов.
-    protected boolean publishEvent(BridgeEvent event)
+    private boolean publishEvent(BridgeEvent event)
     {
-        if (event.rawMessage().getString("address").equals("chat.to.server"))
+        if (event.rawMessage() != null
+            && event.rawMessage().getString("address").equals("chat.to.server"))
         {
             String message = event.rawMessage().getString("body");
             if (!verifyMessage(message))
@@ -171,8 +172,6 @@ public class CServer extends AbstractVerticle
     //события с приватными чатами.
     private boolean sendEvent(BridgeEvent event)
     {
-        log.info("Call Send Event handler, event is: " + event.rawMessage());
-
         String eventAddr = event.rawMessage().getString("address");
         String uuidRegEx = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
@@ -189,7 +188,8 @@ public class CServer extends AbstractVerticle
     //обработчик событий создания сессии.
     private void registerEvent(BridgeEvent event)
     {
-        if (event.rawMessage().getString("address").equals("chat.to.client"))
+        if (event.rawMessage() != null
+            &&event.rawMessage().getString("address").equals("chat.to.client"))
             new Thread(() ->
             {
                 String host = event.socket().remoteAddress().host();
@@ -209,85 +209,58 @@ public class CServer extends AbstractVerticle
     //обработчик событий завершения сессии.
     private void closeEvent(BridgeEvent event)
     {
-        if (event.rawMessage() != null)
-            log.info("Call Close Event handler, event is: " + event.rawMessage());
-        else
-            log.info("Call Close Event handler, event is NULL");
+        new Thread(() ->
+        {
+            String host = event.socket().remoteAddress().host();
+            int port = event.socket().remoteAddress().port();
 
-            new Thread(() ->
+            CClient client = CClient.unregisterClient(host, port);
+            if (client == null) //клиент не был зарегестрирован.
             {
-                String host = event.socket().remoteAddress().host();
-                int port = event.socket().remoteAddress().port();
+                log.warn("Client with the address [" + host + ":" + port + "] has not been registered.");
+                return;
+            }
 
-                CClient client = CClient.unregisterClient(host, port);
-                if (client == null) //клиент не был зарегестрирован.
-                {
-                    log.warn("Client with the address [" + host + ":" + port + "] has not been registered.");
-                    return;
-                }
+            //список закрывшихся приватных чатов.
+            List<UUID> closedAddress = CClient.closePrivateChat(client.getId());
+            //информирование в приватные чаты, что собеседник покинул чат.
+            for (UUID address : closedAddress)
+            {
+                Map<String, Object> closedNotice = createClosedNotice(client, host, port);
+                vertx.eventBus().send("private.chat." + address.toString(), new Gson().toJson(closedNotice));
+            }
 
-                //список закрывшихся приватных чатов.
-                List<UUID> closedAddress = CClient.closeChat(client.getId());
-                //информирование в приватные чаты, что собеседник покинул чат.
-                for (UUID address : closedAddress)
-                {
-                    Map<String, Object> closedNotice = createClosedNotice(client, host, port);
-                    vertx.eventBus().send("private.chat." + address.toString(), new Gson().toJson(closedNotice));
-                }
-
-                //информирование в чат.
-                Map<String, Object> infoNotice = createInfoNotice(client);
-                vertx.eventBus().publish("chat.to.client", new Gson().toJson(infoNotice));
-            }).start();
-    }
-
-    //верификация принятого сообщения.
-    private boolean verifyMessage(String msg)
-    {
-        return  msg.length() > 0
-                && msg.length() <= 140;
+            //информирование в чат.
+            Map<String, Object> infoNotice = createInfoNotice(client);
+            vertx.eventBus().publish("chat.to.client", new Gson().toJson(infoNotice));
+        }).start();
     }
 
     //создание приватного чата.
     private boolean createPrivateChat(BridgeEvent event)
     {
+        //проверка полученного события.
+        if (!verifyEvent(event))
+            return false;
+
         String jMsg = event.rawMessage().getString("body");
         CChatInfo chatInfo = new Gson().fromJson(jMsg, CChatInfo.class);
         chatInfo.genAddress();
-
-        if (chatInfo.getFromId() == 0 || chatInfo.getToId() == 0)
-        {
-            log.warn("FromId=" + chatInfo.getFromId() + ", ToId=" + chatInfo.getToId());
-            return false;
-        }
-
-        //исключить возможность хака.
-        String ip = event.socket().remoteAddress().host();
-        int port = event.socket().remoteAddress().port();
-        CClient fromClient = CClient.getClient(ip, port);
-        if (fromClient != null && fromClient.getId() != chatInfo.getFromId())
-        {
-            log.warn("Server FromID differs from the received FromID.");
-            return false;
-        }
 
         int index = CClient.indexPrivateChat(chatInfo);
         if (index == -1) CClient.addPrivateChat(chatInfo);
         else chatInfo = CClient.getPrivateChat(index); //уникальный uuid.
 
-        if (chatInfo == null)
-        {
-            log.warn("Chat has been closed.");
+        //чат активен.
+        if (!isOpenPrivateChat(chatInfo))
             return false;
-        }
 
         CClient fromIdClient = CClient.getClient(chatInfo.getFromId());
         CClient toIdClient = CClient.getClient(chatInfo.getToId());
-        if (fromIdClient == null || toIdClient == null)
-        {
-            log.warn("FromId Client or ToId Client isn't registered.");
+
+        //клиенты зарегистрированы.
+        if (!isRegisteredClients(fromIdClient, toIdClient))
             return false;
-        }
 
         String fromIdAddress = fromIdClient.getUuid().toString();
         String toIdAddress = toIdClient.getUuid().toString();
@@ -316,14 +289,11 @@ public class CServer extends AbstractVerticle
 
         String host = event.socket().remoteAddress().host();
         int port = event.socket().remoteAddress().port();
-        CChatInfo chatInfo = CClient.getChatByUuid(uuidAddress);
+        CChatInfo chatInfo = CClient.getPrivateChatByUuid(uuidAddress);
 
         //отсутствует приватный чат с указанным адресом.
-        if (chatInfo == null)
-        {
-            log.info("There is no private chat with the specified address: " + uuidAddress);
+        if (!isOpenPrivateChat(chatInfo))
             return false;
-        }
 
         Map<String, Object> privateTweetNotice = createPrivateTweetNotice(chatInfo, host, port, message);
         vertx.eventBus().publish("private.chat." + uuidAddress, new Gson().toJson(privateTweetNotice));
@@ -404,5 +374,69 @@ public class CServer extends AbstractVerticle
         notice.put("online", CClient.getOnline());
         notice.put("client", client);
         return notice;
+    }
+
+    //оба клиента зарегистированы в приватном чате.
+    private boolean isRegisteredClients(CClient fromIdClient, CClient toIdClient)
+    {
+        if (fromIdClient == null || toIdClient == null)
+        {
+            log.warn("FromId Client or ToId Client isn't registered.");
+            return false;
+        }
+        return true;
+    }
+
+    //чат активен.
+    private boolean isOpenPrivateChat(CChatInfo chatInfo)
+    {
+        if (chatInfo == null)
+        {
+            log.warn("Chat does not exist or has been closed.");
+            return false;
+        }
+        return true;
+    }
+
+    //верификация принятого сообщения.
+    private boolean verifyMessage(String msg)
+    {
+        return  msg.length() > 0
+                && msg.length() <= 140;
+    }
+
+    //проверка полученного события.
+    private boolean verifyEvent(BridgeEvent event)
+    {
+        String jMsg = event.rawMessage().getString("body");
+        CChatInfo chatInfo = new Gson().fromJson(jMsg, CChatInfo.class);
+
+        return verifyReceivedChatInfo(chatInfo) && verifySender(event, chatInfo);
+    }
+
+    //проверка полученной информации.
+    private boolean verifyReceivedChatInfo(CChatInfo chatInfo)
+    {
+        if (chatInfo.getFromId() == 0 || chatInfo.getToId() == 0)
+        {
+            log.warn("FromId=" + chatInfo.getFromId() + ", ToId=" + chatInfo.getToId());
+            return false;
+        }
+        return true;
+    }
+
+    //проверка отправителя.
+    private boolean verifySender(BridgeEvent event, CChatInfo chatInfo)
+    {
+        //исключить возможность хака.
+        String ip = event.socket().remoteAddress().host();
+        int port = event.socket().remoteAddress().port();
+        CClient fromClient = CClient.getClient(ip, port);
+        if (fromClient != null && fromClient.getId() != chatInfo.getFromId())
+        {
+            log.warn("Server FromID differs from the received FromID.");
+            return false;
+        }
+        return true;
     }
 }
