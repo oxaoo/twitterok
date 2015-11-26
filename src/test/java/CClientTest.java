@@ -17,6 +17,7 @@ public class CClientTest
     int port;
     Date time;
 
+    @Ignore
     @Before
     public void setup()
     {

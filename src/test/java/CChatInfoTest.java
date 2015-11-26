@@ -1,6 +1,6 @@
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import jdk.nashorn.internal.ir.annotations.Ignore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.UUID;
